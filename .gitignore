@@ -1,0 +1,84 @@
+# ============================================
+# OCTA .gitignore
+# ============================================
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+*.so
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# Environment variables (secrets)
+.env
+.env.local
+.env.*.local
+
+# pytest / coverage
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# mypy
+.mypy_cache/
+
+# ruff
+.ruff_cache/
+
+# ---------- Godot 4.x ----------
+.godot/
+*.import
+export_presets.cfg
+
+# Godot exported builds
+export/
+*.exe
+*.pck
+
+# ---------- IDEs ----------
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyCharm / JetBrains
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ---------- OS ----------
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+._*
+
+# Linux
+*~
+
+# ---------- Misc ----------
+*.log
+*.bak
+*.tmp
+*.swp
+*.swo
