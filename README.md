@@ -1,16 +1,17 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟡 Pre-development (documentation phase)
+**Status:** 🟢 Phase 1 — Godot Character Prototype (runnable)
 
-OCTA is a planned AI-powered desktop tutor for Windows. It aims to guide users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, and progress verification.
+OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, and progress verification.
 
-> **Note:** OCTA is in the planning and documentation stage. No application code has been implemented yet. All features described below are proposed goals, not working functionality.
+> **Note:** OCTA is in early development. The Godot 3D character prototype is implemented and runnable. Python integration, AI, voice, and screen capture are planned for future phases.
 
 ---
 
 ## Table of Contents
 
 - [Project Goals](#project-goals)
+- [What Works Now](#what-works-now)
 - [Proposed Architecture](#proposed-architecture)
 - [Roadmap](#roadmap)
 - [Development Status](#development-status)
@@ -28,6 +29,21 @@ OCTA is a planned AI-powered desktop tutor for Windows. It aims to guide users t
 3. **Visual Screen Guidance** — On-screen highlights, arrows, and overlays that direct attention to the relevant UI elements.
 4. **Progress Verification** — Automated checks (via screen capture and AI analysis) to confirm the user completed each step correctly.
 5. **Voice Interaction** — Planned speech-to-text and text-to-speech for hands-free operation.
+
+---
+
+## What Works Now
+
+The **Phase 1 Godot prototype** is a runnable proof of concept:
+
+- A simple 3D robot character built from Godot primitive meshes (spheres, capsules, cylinders).
+- Warm, friendly placeholder design with a head, large eyes, compact body, arms, legs, and antenna.
+- Gentle idle animation: body bobbing, head sway, arm movement.
+- Four character states with distinct visual feedback: **IDLE**, **LISTENING**, **THINKING**, **SUCCESS**.
+- Keyboard controls for state switching (Space/Enter to cycle, 1–4 for direct selection).
+- Camera, two-point lighting, and a dark background.
+
+This is temporary placeholder geometry — not the final character artwork.
 
 ---
 
@@ -67,10 +83,10 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 
 | Phase | Description | Status |
 |---|---|---|
-| 0.1 | Project foundation & documentation | 🔄 In progress |
-| 0.2 | Development environment setup | ⬜ Planned |
-| 1.0 | Core Python application skeleton | ⬜ Planned |
-| 2.0 | Godot 3D character prototype | ⬜ Planned |
+| 0.1 | Project foundation & documentation | ✅ Complete |
+| 0.2 | Development environment setup | ✅ Complete |
+| 1.0 | Godot 3D character prototype | ✅ Complete |
+| 2.0 | Core Python application skeleton | ⬜ Planned |
 | 3.0 | WebSocket bridge | ⬜ Planned |
 | 4.0 | Screen capture & AI integration | ⬜ Planned |
 | 5.0 | Voice interaction | ⬜ Planned |
@@ -80,25 +96,37 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 
 ## Development Status
 
-- **Current phase:** 0.1 — Project Foundation
-- **What exists:** Documentation files only (`README.md`, `ROADMAP.md`, `CHANGELOG.md`, `PROJECT_RULES.md`, architecture docs).
-- **What does not exist yet:** Application code, dependencies, build scripts, installers, or any runnable software.
+- **Current phase:** 1.0 — Godot 3D Character Prototype (complete)
+- **What exists:** Documentation files and a runnable Godot 4.7 project with a 3D robot character, idle animations, and a four-state state machine.
+- **What does not exist yet:** Python application, WebSocket bridge, AI integration, voice, screen capture, or installers.
 
 ---
 
 ## Getting Started
 
-OCTA has no runnable code yet. To follow the project:
+### Prerequisites
+
+- **Godot 4.7.x** (4.7.2 Stable recommended) — download from [godotengine.org](https://godotengine.org/download/windows/)
+- **Git** — for cloning the repository
+
+### Running the Prototype
 
 1. Clone the repository:
    ```bash
    git clone https://github.com/AakashBogu/OCTA.git
    cd OCTA
    ```
-2. Read the [ROADMAP.md](ROADMAP.md) for planned milestones.
-3. Read [PROJECT_RULES.md](PROJECT_RULES.md) for contribution and development rules.
+2. Open Godot and import the project at `godot/project.godot`.
+3. Press **F5** (or the Play ▶ button) to run the main scene.
+4. Use **Space** or **Enter** to cycle through character states, or press **1–4** to select a state directly:
+   - `1` — IDLE
+   - `2` — LISTENING
+   - `3` — THINKING
+   - `4` — SUCCESS
 
-When development begins, setup instructions will be added here.
+### Project Rules
+
+Read [PROJECT_RULES.md](PROJECT_RULES.md) for the documentation and development workflow.
 
 ---
 
@@ -107,25 +135,33 @@ When development begins, setup instructions will be added here.
 ```
 OCTA/
 ├── docs/
-│   ├── architecture.md      # Detailed architecture documentation
-│   └── PROGRESS.md           # Task-by-task progress log
-├── .env.example              # Template for environment variables
-├── .gitignore                # Git ignore rules
-├── CHANGELOG.md              # Version changelog
-├── PROJECT_RULES.md          # Development rules and workflow requirements
-├── README.md                 # This file
-└── ROADMAP.md                # Milestone roadmap
+│   ├── architecture.md           # Architecture documentation
+│   └── PROGRESS.md               # Task-by-task progress log
+├── godot/                        # Godot 4.x project
+│   ├── scenes/
+│   │   └── main.tscn             # Main scene (camera, lights, robot, UI)
+│   ├── scripts/
+│   │   ├── main_scene.gd         # Scene setup, environment, and UI overlay
+│   │   └── robot_character.gd    # Robot construction, animation, state machine
+│   ├── icon.svg                  # Godot default project icon
+│   └── project.godot             # Godot project configuration
+├── .env.example                  # Template for environment variables
+├── .gitignore                    # Git ignore rules
+├── CHANGELOG.md                  # Version changelog
+├── PROJECT_RULES.md              # Development rules and workflow requirements
+├── README.md                     # This file
+└── ROADMAP.md                    # Milestone roadmap
 ```
 
 ---
 
 ## Contributing
 
-OCTA is in early planning. Contributions are welcome once the project reaches active development. In the meantime:
+OCTA is in early development. Contributions are welcome:
 
 1. Read [PROJECT_RULES.md](PROJECT_RULES.md) for the documentation and commit workflow.
 2. Open an issue on [GitHub](https://github.com/AakashBogu/OCTA/issues) to discuss ideas.
-3. All future pull requests must follow the documentation update rules in `PROJECT_RULES.md`.
+3. All pull requests must follow the documentation update rules in `PROJECT_RULES.md`.
 
 ---
 

@@ -1,14 +1,14 @@
 # OCTA — Roadmap
 
-> **Last updated:** 2026-10-28
+> **Last updated:** 2026-10-29
 >
-> All milestones below are **planned**. None have been completed unless explicitly marked.
+> Milestones marked with [x] have been completed and verified.
 
 ---
 
 ## Phase 0 — Foundation
 
-### Phase 0.1 — Project Foundation & Documentation *(current)*
+### Phase 0.1 — Project Foundation & Documentation *(complete)*
 
 - [x] Initialize Git repository
 - [x] Create README.md with project overview
@@ -19,21 +19,36 @@
 - [x] Create docs/PROGRESS.md
 - [x] Create .gitignore and .env.example
 
-### Phase 0.2 — Development Environment Setup *(planned)*
+### Phase 0.2 — Development Environment Setup *(complete)*
 
+- [x] Install Godot 4.x and verify editor runs
 - [ ] Define Python version and dependency management strategy (e.g., `pyproject.toml`, `requirements.txt`)
 - [ ] Set up virtual environment tooling
 - [ ] Install PySide6 and verify a minimal window launches
-- [ ] Install Godot 4.x and verify editor runs
 - [ ] Establish project linting and formatting (e.g., `ruff`, `black`)
 - [ ] Add pre-commit hooks
 - [ ] Verify development environment on a clean Windows machine
 
 ---
 
-## Phase 1 — Core Python Application
+## Phase 1 — Godot 3D Character Prototype *(complete)*
 
-### Phase 1.0 — Application Skeleton *(planned)*
+### Phase 1.0 — Minimal Character Prototype
+
+- [x] Set up Godot 4.x project structure (`godot/` directory with `project.godot`)
+- [x] Create 3D robot character from built-in primitive meshes
+- [x] Implement idle animation (body bob, head sway, arm movement)
+- [x] Define character state machine (IDLE, LISTENING, THINKING, SUCCESS)
+- [x] Add visual feedback per state (eye colour, emission, antenna pulse)
+- [x] Add camera, lighting, and background environment
+- [x] Add keyboard controls for state switching (Space/Enter to cycle, 1–4 direct)
+- [x] Set main scene in project.godot
+
+---
+
+## Phase 2 — Core Python Application *(planned)*
+
+### Phase 2.0 — Application Skeleton
 
 - [ ] Create Python package structure
 - [ ] Implement application entry point
@@ -41,18 +56,6 @@
 - [ ] Create basic settings/configuration framework
 - [ ] Add logging infrastructure
 - [ ] Write initial unit tests
-
----
-
-## Phase 2 — 3D Character
-
-### Phase 2.0 — Godot Character Prototype *(planned)*
-
-- [ ] Set up Godot 4.x project structure
-- [ ] Create or integrate a 3D character model
-- [ ] Implement basic idle, talking, and pointing animations
-- [ ] Build transparent borderless window for desktop overlay
-- [ ] Define character emotion/state machine
 
 ---
 
@@ -100,6 +103,17 @@
 - [ ] User testing and feedback loop
 - [ ] Performance optimization
 - [ ] Installer / distribution packaging
+
+---
+
+## Phase 7 — Advanced Character *(planned)*
+
+### Phase 7.0 — Enhanced Godot Character
+
+- [ ] Build transparent borderless window for desktop overlay
+- [ ] Create or integrate a higher-quality 3D character model
+- [ ] Implement advanced animations (talking, pointing, celebrating)
+- [ ] Add AnimationTree-based state transitions
 
 ---
 
