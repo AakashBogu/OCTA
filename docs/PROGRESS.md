@@ -131,3 +131,81 @@ Diagnosed and fixed the Godot 4.7.2 parser error (`Cannot find member "TONE_MAP_
 ### Next Step
 
 - Launch the project in the Godot GUI (F5) to visually confirm the 3D viewport, character animation, and HUD interactions.
+
+
+---
+
+## Task: Phase 2.1 — Python Packaging & Project Foundation
+
+**Date:** 2026-11-01
+**Phase:** 2.1
+
+### Summary
+
+Established the Python desktop application package structure (`src/octa`), PEP 621 packaging metadata via `pyproject.toml`, local virtual environment tooling, CLI entry point supporting `python -m octa --version`, pytest configuration, and Ruff linting/formatting rules.
+
+### Files Created
+
+- `pyproject.toml` — Modern PEP 621 packaging metadata, runtime and dev dependencies, pytest configuration, and Ruff rules.
+- `requirements.txt` — References `-e .` to maintain `pyproject.toml` as single source of truth.
+- `requirements-dev.txt` — References `-e .[dev]` for testing and linting tools.
+- `src/octa/__init__.py` — Package root defining version (`0.1.0`) and exports.
+- `src/octa/__main__.py` — CLI entry point supporting `python -m octa --version` and CLI execution.
+- `tests/conftest.py` — Pytest fixtures for isolated temporary workspaces.
+- `tests/unit/test_foundation.py` — Foundation tests for package structure, versioning, and CLI execution.
+
+### Validation
+
+- **Python Interpreter:** Verified Python 3.12.10 at `C:\Users\Admin\Desktop\OCTA\.venv\Scripts\python.exe`.
+- **Editable Install:** Ran `pip install -e ".[dev]"`, verified package `octa 0.1.0` installed in editable mode.
+- **CLI Output:** Ran `python -m octa --version`, returned `octa 0.1.0` (exit code 0).
+- **Test Suite:** Ran `pytest -v`, all 6 foundation tests passed in 0.13s.
+- **Linter & Formatter:** Ran `ruff check .` and `ruff format --check .`, 0 errors, all formatted.
+- **Git Cleanliness:** Verified `.venv/` and build artifacts are ignored by `.gitignore`.
+
+### Blockers
+
+- None.
+
+### Next Step
+
+- Proceed to Phase 2.2: Configuration & Logging Infrastructure.
+
+---
+
+## Task: Phase 2.2 — Configuration & Logging Infrastructure
+
+**Date:** 2026-11-01
+**Phase:** 2.2
+
+### Summary
+
+Implemented a strongly-typed configuration system (`AppConfig`) using Python 3.12 dataclasses with multi-tier precedence and safe Windows `%LOCALAPPDATA%` path resolution, alongside structured console and rotating-file logging (`setup_logging`, `shutdown_logging`) with duplicate handler prevention and Windows file lock release hooks.
+
+### Files Created
+
+- `src/octa/core/__init__.py` — Exports core services (`AppConfig`, `ConfigError`, `LoggingError`, `setup_logging`, `shutdown_logging`).
+- `src/octa/core/config.py` — `AppConfig` dataclass, path resolution, environment parsing, validation, and `.env` loader.
+- `src/octa/core/logging.py` — Console and rotating file handler configuration, idempotent re-initialization, and Windows resource cleanup.
+- `tests/unit/test_config.py` — 9 unit tests covering defaults, overrides, `.env` loading, precedence, and path resolution.
+- `tests/unit/test_logging.py` — 6 unit tests covering log creation, level filtering, log rotation, duplicate prevention, and error handling.
+
+### Files Modified
+
+- `tests/conftest.py` — Added `clean_logging_state` autouse fixture to close logging file handlers after each test.
+
+### Validation
+
+- **Test Suite:** Ran `pytest -v`, all 21 tests passed in 0.40s.
+- **Ruff Checks:** Ran `ruff check .` (0 errors) and `ruff format --check .` (clean).
+- **Git Diff Check:** Ran `git diff --check`, 0 whitespace errors.
+- **Isolation Check:** Verified all file I/O tests use isolated temporary directories (`tmp_path`).
+- **Godot Integrity:** Verified `git status godot` reports clean working tree.
+
+### Blockers
+
+- None.
+
+### Next Step
+
+- Pre-commit audit and documentation updates for Milestones 2.1 and 2.2, then proceed to Milestone 2.3 (Godot Process Manager).

@@ -1,8 +1,8 @@
 # OCTA — Architecture Documentation
 
-> **Status:** The Godot character prototype (Phase 1) is implemented. All other components remain **proposed**.
+> **Status:** Phase 1 (Godot character prototype) and Phase 2 Milestones 2.1 & 2.2 (Python application foundation, configuration, and logging) are implemented. All other components remain **proposed**.
 >
-> **Last updated:** 2026-10-29
+> **Last updated:** 2026-11-01
 
 ---
 
@@ -15,6 +15,8 @@
 - [Technology Choices and Rationale](#technology-choices-and-rationale)
 - [Security Considerations](#security-considerations)
 - [Open Questions](#open-questions)
+- [Phase 1 — Implemented Scene Architecture](#phase-1--implemented-scene-architecture)
+- [Phase 2 — Implemented Python Architecture (Milestones 2.1 & 2.2)](#phase-2--implemented-python-architecture-milestones-21--22)
 
 ---
 
@@ -252,3 +254,83 @@ State transitions use `lerpf` / `Color.lerp` for smooth visual blending.
 - **No AnimationPlayer:** Idle motion uses `_process()` with `sin()` oscillators. This avoids the complexity of animation tracks for what is essentially placeholder geometry.
 - **State via property setter:** The `current_state` property uses a setter to emit `state_changed` and reset `_state_time`, keeping the API simple.
 - **GL Compatibility renderer:** Chosen for broad GPU compatibility in a prototype. Can be upgraded later.
+
+
+---
+
+## Phase 2 — Implemented Python Architecture (Milestones 2.1 & 2.2)
+
+The following describes the **actual** Python application architecture implemented in Phase 2 Milestones 2.1 and 2.2.
+
+### Package Layout (`src/octa/`)
+
+OCTA uses a modern `src` layout compliant with PEP 621 / PEP 517 packaging standards:
+
+```
+src/octa/
+├── __init__.py                # Package version (__version__ = "0.1.0") and exports
+├── __main__.py                # CLI entry point: python -m octa [--version | -V]
+└── core/                      # Core application services
+    ├── __init__.py            # Central exports (AppConfig, setup_logging, etc.)
+    ├── config.py              # Configuration dataclasses and environment parsing
+    └── logging.py             # Console and rotating file logging infrastructure
+```
+
+### Configuration Subsystem (`octa.core.config`)
+
+Configuration is managed via the strongly-typed `AppConfig` frozen dataclass:
+
+- **Fields & Types:**
+  - `app_name: str` (default: `"OCTA"`)
+  - `env: str` (default: `"production"`)
+  - `app_dir: Path` (default: `%LOCALAPPDATA%\OCTA`)
+  - `log_dir: Path` (default: `{app_dir}\logs`)
+  - `log_level: str` (default: `"INFO"`, validated against `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`)
+  - `log_to_file: bool` (default: `True`)
+  - `log_to_console: bool` (default: `True`)
+  - `log_max_bytes: int` (default: `5242880` / 5 MB)
+  - `log_backup_count: int` (default: `3`)
+  - `godot_executable: Path | None` (default: `None`)
+  - `godot_project_dir: Path` (default: `Path("godot")`)
+  - `godot_auto_start: bool` (default: `False`)
+  - `start_minimized: bool` (default: `False`)
+
+#### Configuration Precedence
+
+When loaded via `AppConfig.load(...)`, values are resolved with the following priority (lowest to highest):
+
+1. **Dataclass Defaults:** Built-in default values.
+2. **`.env` File:** Parsed using `python-dotenv` (`dotenv_values`) without polluting global process environment variables.
+3. **Environment Variables:** Process environment variables prefixed with `OCTA_` (e.g. `OCTA_LOG_LEVEL`, `OCTA_APP_DIR`, `OCTA_GODOT_PATH`).
+4. **Explicit Keyword Overrides:** Arguments passed directly to `AppConfig.load(...)`, enabling full isolation in automated tests.
+
+#### Windows Path Resolution
+
+- Application data defaults to `%LOCALAPPDATA%\OCTA` using `os.environ.get("LOCALAPPDATA")`.
+- If `LOCALAPPDATA` is not defined, it falls back to `Path.home() / "AppData" / "Local" / "OCTA"`.
+- Log files default to `{app_dir}\logs\octa.log`.
+- No directories are created automatically during configuration loading; directories are created on demand when logging starts.
+
+### Logging Subsystem (`octa.core.logging`)
+
+- **Dual Handlers:**
+  1. `StreamHandler` (Console): Human-readable format: `%(asctime)s [%(levelname)-7s] [%(name)s] %(message)s`.
+  2. `RotatingFileHandler` (File): Detailed location format: `%(asctime)s [%(levelname)-7s] [%(name)s] (%(filename)s:%(lineno)d) %(message)s`. Rotates at `log_max_bytes` keeping `log_backup_count` backups.
+- **Duplicate Prevention:**
+  - `setup_logging()` removes and closes any existing octa-managed handlers prior to attaching new ones, ensuring idempotent calls without duplicate log output.
+- **Windows File Safety (`shutdown_logging`):**
+  - Explicitly flushes and closes file handles on the target logger. This avoids Windows file-locking issues when temporary directories are cleaned up in automated tests.
+
+### Component Implementation Status
+
+| Component | Status | Implementation Details |
+|---|---|---|
+| Godot Character Scene | ✅ Implemented (Phase 1) | `godot/` 3D character, idle animation, 4 states |
+| Python Packaging & Entry Point | ✅ Implemented (Phase 2.1) | `pyproject.toml`, `src/octa/__main__.py` |
+| Configuration Infrastructure | ✅ Implemented (Phase 2.2) | `octa.core.config.AppConfig` |
+| Logging Infrastructure | ✅ Implemented (Phase 2.2) | `octa.core.logging.setup_logging` |
+| Godot Process Manager | ⬜ Planned (Phase 2.3) | Launch, monitor, and graceful termination |
+| PySide6 Desktop UI / Tray | ⬜ Planned (Phase 2.4) | System tray icon, diagnostic control window |
+| WebSocket Communication Bridge | ⬜ Planned (Phase 3.0) | Localhost-only JSON RPC bridge |
+| AI Pipeline & Screen Capture | ⬜ Planned (Phase 4.0) | Vision analysis, guidance generation |
+| Voice Interaction (STT/TTS) | ⬜ Planned (Phase 5.0) | Speech synthesis and recognition |

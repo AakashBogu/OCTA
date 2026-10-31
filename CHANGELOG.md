@@ -12,6 +12,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Phase 2.2 — Configuration & Logging Infrastructure (2026-11-01)**
+  - `src/octa/core/config.py` — Strongly-typed `AppConfig` dataclass with multi-tier precedence (Defaults < .env < Environment Variables < Keyword Overrides), safe Windows `%LOCALAPPDATA%` path resolution, and `ConfigError` validation.
+  - `src/octa/core/logging.py` — Structured console and rotating file logging (`setup_logging`), idempotent setup avoiding duplicate handlers, and Windows file lock release hooks (`shutdown_logging`).
+  - `src/octa/core/__init__.py` — Central core exports.
+  - `tests/unit/test_config.py` — 9 unit tests verifying configuration loading, precedence, and path resolution.
+  - `tests/unit/test_logging.py` — 6 unit tests verifying log file creation, log levels, rotation, duplicate prevention, and error handling.
+
+- **Phase 2.1 — Python Packaging & Project Foundation (2026-11-01)**
+  - `pyproject.toml` — Modern PEP 621 packaging metadata, runtime and development dependencies, setuptools package discovery, pytest configuration, and Ruff linter/formatter rules.
+  - `requirements.txt`, `requirements-dev.txt` — Authoritative references to `-e .` and `-e .[dev]`.
+  - `src/octa/__init__.py` — Package root defining version (`0.1.0`) and exports.
+  - `src/octa/__main__.py` — Application entry point supporting `python -m octa --version` and CLI execution.
+  - `tests/conftest.py` — Shared pytest fixtures for temporary workspace isolation and logging handler cleanup.
+  - `tests/unit/test_foundation.py` — Foundation tests for package structure, versioning, and CLI execution.
+
 - **Phase 1.0 — Godot 3D Character Prototype (2026-10-29)**
   - `godot/scenes/main.tscn` — Main 3D scene with camera, lighting, environment, robot character, and HUD overlay.
   - `godot/scripts/robot_character.gd` — `RobotCharacter` class: builds a friendly robot from primitive meshes (spheres, capsules, cylinders), idle animation (body bob, head sway, arm swing), and a four-state state machine (IDLE, LISTENING, THINKING, SUCCESS) with smooth colour/emission transitions.
@@ -27,10 +42,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- `README.md` — Updated to reflect Phase 1 prototype status, added "What Works Now" section, run instructions, and updated project structure.
-- `ROADMAP.md` — Marked Phase 0.1, 0.2 (Godot install), and Phase 1.0 tasks as complete. Reorganised phases to match actual implementation order. Added Phase 7 for advanced character work.
-- `docs/architecture.md` — Added Phase 1 scene/script architecture section documenting the actual implemented structure.
-- `docs/PROGRESS.md` — Added Phase 1 progress entry with files changed, validation results, and next steps.
+- `README.md` — Updated to reflect Phase 2 progress, added Python setup instructions, CLI usage, and updated project structure.
+- `ROADMAP.md` — Marked Phase 2.1 and 2.2 completed; broken down Phase 2 into discrete milestones.
+- `docs/PROGRESS.md` — Appended task logs for Milestones 2.1 and 2.2.
+- `docs/architecture.md` — Documented Python application package structure, configuration precedence, and logging subsystem.
 
 - **Phase 0.1 — Project Foundation (2026-10-28)**
   - `README.md` — Project overview, goals, proposed architecture, and roadmap summary.

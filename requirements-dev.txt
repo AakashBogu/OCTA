@@ -1,0 +1,3 @@
+# OCTA development & test dependencies
+# Authoritative definitions reside in pyproject.toml
+-e .[dev]

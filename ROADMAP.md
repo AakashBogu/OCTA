@@ -1,6 +1,6 @@
 # OCTA — Roadmap
 
-> **Last updated:** 2026-10-29
+> **Last updated:** 2026-11-01
 >
 > Milestones marked with [x] have been completed and verified.
 
@@ -22,12 +22,12 @@
 ### Phase 0.2 — Development Environment Setup *(complete)*
 
 - [x] Install Godot 4.x and verify editor runs
-- [ ] Define Python version and dependency management strategy (e.g., `pyproject.toml`, `requirements.txt`)
-- [ ] Set up virtual environment tooling
-- [ ] Install PySide6 and verify a minimal window launches
-- [ ] Establish project linting and formatting (e.g., `ruff`, `black`)
+- [x] Define Python version and dependency management strategy (`pyproject.toml`, `requirements.txt`)
+- [x] Set up virtual environment tooling (`.venv`)
+- [ ] Install PySide6 and verify a minimal window launches *(deferred to Phase 2.4)*
+- [x] Establish project linting and formatting (`ruff`)
 - [ ] Add pre-commit hooks
-- [ ] Verify development environment on a clean Windows machine
+- [x] Verify development environment on a clean Windows machine
 
 ---
 
@@ -46,16 +46,42 @@
 
 ---
 
-## Phase 2 — Core Python Application *(planned)*
+## Phase 2 — Core Python Application *(in progress)*
 
-### Phase 2.0 — Application Skeleton
+### Milestone 2.1 — Python Packaging & Project Foundation *(complete)*
 
-- [ ] Create Python package structure
-- [ ] Implement application entry point
-- [ ] Build system tray integration with PySide6
-- [ ] Create basic settings/configuration framework
-- [ ] Add logging infrastructure
-- [ ] Write initial unit tests
+- [x] Create modern `pyproject.toml` with Python 3.12-compatible packaging standards (PEP 621)
+- [x] Establish `src/octa/` package structure and minimal entry point (`__init__.py`, `__main__.py`)
+- [x] Add dependency declarations and requirements files
+- [x] Configure pytest and Ruff in `pyproject.toml`
+- [x] Add foundation tests and verify `python -m octa --version`
+
+### Milestone 2.2 — Configuration & Logging Infrastructure *(complete)*
+
+- [x] Implement strongly-typed `AppConfig` dataclass with defaults
+- [x] Implement `.env` file loading and `OCTA_*` environment variable overrides
+- [x] Implement Windows application-data and log directory resolution
+- [x] Implement structured console and rotating file logging
+- [x] Prevent duplicate handlers and provide clean Windows shutdown hooks
+- [x] Write unit tests for configuration and logging (21 tests total)
+
+### Milestone 2.3 — Godot Process Manager *(planned)*
+
+- [ ] Implement Godot executable discovery and path resolution
+- [ ] Implement asynchronous Godot process launching and monitoring
+- [ ] Implement two-stage graceful shutdown with force-kill fallback
+- [ ] Implement stdout/stderr stream forwarding to logging
+- [ ] Handle crash detection and rate-limited restart safeguards
+
+### Milestone 2.4 — PySide6 Desktop Interface *(planned)*
+
+- [ ] Build system tray integration with PySide6 (`QSystemTrayIcon`)
+- [ ] Create companion diagnostic and monitor window
+- [ ] Connect UI controls to process manager
+
+### Milestone 2.5 — Documentation & Phase 2 Wrap-up *(planned)*
+
+- [ ] Complete Phase 2 verification and documentation sync
 
 ---
 

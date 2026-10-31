@@ -1,0 +1,3 @@
+# OCTA runtime dependencies
+# Authoritative definitions reside in pyproject.toml
+-e .
