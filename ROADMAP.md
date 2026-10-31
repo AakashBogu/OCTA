@@ -65,13 +65,14 @@
 - [x] Prevent duplicate handlers and provide clean Windows shutdown hooks
 - [x] Write unit tests for configuration and logging (21 tests total)
 
-### Milestone 2.3 — Godot Process Manager *(planned)*
+### Milestone 2.3 — Godot Process Manager *(complete)*
 
-- [ ] Implement Godot executable discovery and path resolution
-- [ ] Implement asynchronous Godot process launching and monitoring
-- [ ] Implement two-stage graceful shutdown with force-kill fallback
-- [ ] Implement stdout/stderr stream forwarding to logging
-- [ ] Handle crash detection and rate-limited restart safeguards
+- [x] Implement Godot executable discovery and path validation (`validate_godot_environment`)
+- [x] Implement asynchronous Godot process launching and monitoring via PySide6 `QProcess` (`GodotProcessManager`)
+- [x] Implement two-stage graceful shutdown with force-kill fallback and process-generation token protection
+- [x] Implement stdout/stderr stream forwarding to logging and Qt signals
+- [x] Implement asynchronous restart sequencing, cleanup semantics, and crash/error detection
+- [x] Validate against real Godot 4.7.2 binary in headless mode with integration tests (85 tests passing total)
 
 ### Milestone 2.4 — PySide6 Desktop Interface *(planned)*
 

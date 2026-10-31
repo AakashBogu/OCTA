@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 2 — Python Foundation & Godot Character Prototype (in progress)
+**Status:** 🟢 Phase 2 — Python Foundation & Process Management (in progress)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, and progress verification.
 
-> **Note:** OCTA is in active early development. The Phase 1 Godot 3D character prototype is implemented and runnable. The Phase 2 Python desktop application foundation (packaging, configuration, logging, and test infrastructure) is implemented. At this stage, Godot and Python operate as separate components; process management, PySide6 desktop UI, and WebSocket inter-process communication are scheduled for upcoming milestones.
+> **Note:** OCTA is in active early development. The Phase 1 Godot 3D character prototype is implemented and runnable. The Phase 2 Python desktop application foundation (packaging, configuration, logging, process management, and test infrastructure) is implemented and verified against the real Godot 4.7.2 binary. PySide6 desktop UI (system tray / monitor window) and WebSocket inter-process communication are scheduled for upcoming milestones.
 
 ---
 
@@ -34,7 +34,7 @@ OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop
 
 ## What Works Now
 
-OCTA currently includes two verified foundational components:
+OCTA currently includes three verified foundational components:
 
 ### 1. Phase 1 Godot 3D Character Prototype
 - A simple 3D robot character built programmatically from Godot primitive meshes (spheres, capsules, cylinders).
@@ -49,9 +49,21 @@ OCTA currently includes two verified foundational components:
 - Minimal application CLI entry point supporting `python -m octa --version`.
 - Strongly-typed application configuration (`AppConfig`) supporting defaults, `.env` file loading, OS environment variable overrides (`OCTA_*`), and safe Windows `%LOCALAPPDATA%` path resolution.
 - Structured logging (`setup_logging`, `shutdown_logging`) with formatted console output and rotating file logging (`RotatingFileHandler`).
-- Automated testing infrastructure using pytest with 21 passing unit tests and Ruff linting/formatting.
+- Automated testing infrastructure using pytest with 21 foundation and config/logging unit tests and Ruff linting/formatting.
 
-> **Component Coupling Note:** The Godot character and the Python desktop application currently exist as independent modules. Subprocess launching, monitoring, and localhost WebSocket communication will be linked in Milestones 2.3 and Phase 3.
+### 3. Phase 2.3 Godot Process Manager
+- Asynchronous process lifecycle management via PySide6 `QProcess` (`GodotProcessManager`).
+- Environment and path validation for Godot executable and project directory (`validate_godot_environment`).
+- Strict lifecycle state machine (`ProcessState`: `STOPPED`, `STARTING`, `RUNNING`, `STOPPING`, `CRASHED`, `ERROR`).
+- Asynchronous standard output and standard error stream capture with UTF-8 decoding.
+- Two-stage process termination: graceful shutdown request (`WM_CLOSE` on Windows) with single-shot non-blocking timeout fallback to force kill (`TerminateProcess`).
+- Asynchronous restart sequencing (`restart()`) ensuring replacement processes never launch before the previous process finishes.
+- Asynchronous, idempotent cleanup semantics (`cleanup()`) using QProcess signals for lifecycle finalization.
+- Monotonically increasing process-generation token (`_generation`) preventing stale shutdown timeouts from terminating replacement processes across lifecycles.
+- Comprehensive test coverage: 59 unit tests (mocked `QProcess`) and 5 integration tests against real Godot 4.7.2 binary (85 automated tests total).
+- **Process Termination Scope:** The integration tests confirm termination of the direct Godot process. Descendant-process containment is not guaranteed by the current implementation (kernel Job Objects and process-tree traversal are deferred).
+
+> **Component Coupling Note:** Python now possesses full process management capabilities to launch, monitor, restart, and terminate the Godot companion runtime. PySide6 desktop UI (system tray / monitor window) in Milestone 2.4 and localhost WebSocket communication in Phase 3 will link user controls and bidirectional interaction.
 
 ---
 
@@ -67,13 +79,15 @@ OCTA is designed around two cooperating processes connected by a local WebSocket
 │  • Screen capture       │                        │  • Visual overlays      │
 │  • Voice I/O            │                        │  • Emotion / animation  │
 │  • Task engine          │                        │    state machine        │
-│  • PySide6 system UI    │                        │                         │
+│  • PySide6 system UI    │                        │  • QProcess managed     │
+│  • GodotProcessManager  │                        │                         │
 └─────────────────────────┘                        └─────────────────────────┘
 ```
 
 | Layer | Planned Technology | Purpose |
 |---|---|---|
 | Application logic | Python 3.12+ | Core orchestration, configuration, logging, task engine |
+| Process management | PySide6 (`QProcess`) | Launching, monitoring, restarting, and terminating Godot runtime |
 | Desktop UI | PySide6 | System tray, settings dialogs, companion monitor window |
 | 3D Character | Godot 4.7.x | Animated companion rendering and interaction |
 | IPC | WebSocket (localhost) | Real-time bidirectional messaging between Python and Godot |
@@ -94,7 +108,10 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 0.1 | Project foundation & documentation | ✅ Complete |
 | 0.2 | Development environment setup | ✅ Complete |
 | 1.0 | Godot 3D character prototype | ✅ Complete |
-| 2.0 | Core Python application skeleton (Milestones 2.1 & 2.2) | 🟡 In progress |
+| 2.1 | Python packaging & project foundation | ✅ Complete |
+| 2.2 | Configuration & logging infrastructure | ✅ Complete |
+| 2.3 | Godot process manager | ✅ Complete |
+| 2.4 | PySide6 desktop interface | ⬜ Planned |
 | 3.0 | WebSocket bridge | ⬜ Planned |
 | 4.0 | Screen capture & AI integration | ⬜ Planned |
 | 5.0 | Voice interaction | ⬜ Planned |
@@ -104,11 +121,12 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 
 ## Development Status
 
-- **Current phase:** 2.0 — Core Python Application (Milestones 2.1 and 2.2 completed)
+- **Current phase:** 2.0 — Core Python Application (Milestones 2.1, 2.2, and 2.3 completed)
 - **What exists:**
   - Runnable Godot 4.7 project with a 3D robot character, idle animations, and a four-state state machine.
-  - Python 3.12 package foundation with CLI version flag, configuration system, structured logging, and automated test suite.
-- **What does not exist yet:** Godot process manager, PySide6 desktop UI/system tray, WebSocket bridge, AI integration, voice, screen capture, or installers.
+  - Python 3.12 package foundation with CLI version flag, configuration system, structured logging, and Godot process manager.
+  - Full automated test suite (85 tests passing: 80 unit tests and 5 real Godot integration tests).
+- **What does not exist yet:** PySide6 desktop UI/system tray, WebSocket bridge, AI integration, voice, screen capture, or installers.
 
 ---
 
@@ -184,16 +202,26 @@ OCTA/
 │   └── octa/                     # Python 3.12 desktop package
 │       ├── __init__.py           # Package version (__version__) and exports
 │       ├── __main__.py           # CLI entry point (python -m octa)
-│       └── core/                 # Core application services
-│           ├── __init__.py       # Core exports
-│           ├── config.py         # AppConfig dataclass & environment parsing
-│           └── logging.py        # Structured console & rotating file logging
-├── tests/                        # Automated test suite
-│   ├── conftest.py               # Shared test fixtures & logging cleanup
-│   └── unit/
+│       ├── core/                 # Core application services
+│       │   ├── __init__.py       # Core exports
+│       │   ├── config.py         # AppConfig dataclass & environment parsing
+│       │   └── logging.py        # Structured console & rotating file logging
+│       └── process/              # Godot process lifecycle management
+│           ├── __init__.py       # Process module exports
+│           ├── exceptions.py     # Process management exception hierarchy
+│           ├── manager.py        # GodotProcessManager (PySide6 QProcess lifecycle)
+│           ├── state.py          # ProcessState enum
+│           └── validator.py      # Executable and project path validation
+├── tests/                        # Automated test suite (85 tests passing)
+│   ├── conftest.py               # Shared test fixtures & custom markers
+│   ├── integration/              # Real binary integration tests
+│   │   └── test_godot_process_integration.py  # Real Godot headless integration tests
+│   └── unit/                     # Isolated unit tests (mocked doubles)
 │       ├── test_config.py        # Configuration & precedence tests
 │       ├── test_foundation.py    # Package & version CLI tests
-│       └── test_logging.py       # Log creation, rotation & handler tests
+│       ├── test_godot_manager.py # GodotProcessManager lifecycle & timer tests
+│       ├── test_logging.py       # Log creation, rotation & handler tests
+│       └── test_process_validator.py # Path validation unit tests
 ├── .env.example                  # Template for environment variables
 ├── .gitignore                    # Git ignore rules
 ├── CHANGELOG.md                  # Version changelog

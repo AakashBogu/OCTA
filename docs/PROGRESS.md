@@ -208,4 +208,51 @@ Implemented a strongly-typed configuration system (`AppConfig`) using Python 3.1
 
 ### Next Step
 
-- Pre-commit audit and documentation updates for Milestones 2.1 and 2.2, then proceed to Milestone 2.3 (Godot Process Manager).
+- Proceed to Phase 2.3: Godot Process Manager.
+
+---
+
+## Task: Phase 2.3 — Godot Process Manager, Lifecycle Audit & Real Integration Testing
+
+**Date:** 2026-11-01
+**Phase:** 2.3
+
+### Summary
+
+Designed and implemented a reliable, Windows-compatible Godot process management subsystem (`src/octa/process/`) using PySide6 `QProcess`. It validates the executable and project paths, asynchronously launches the runtime, streams standard output/error, tracks process states (`STOPPED`, `STARTING`, `RUNNING`, `STOPPING`, `CRASHED`, `ERROR`), provides two-stage shutdown (graceful terminate + force-kill fallback), supports asynchronous restart sequencing, guarantees asynchronous cleanup, and tracks a monotonically increasing process-generation token to prevent stale shutdown timers from terminating newer processes across lifecycles. Conducted a targeted lifecycle audit and verified the manager against the real installed Godot 4.7.2 console binary (`4.7.2.stable.official.ed1daf0bf`) with 5 dedicated integration tests.
+
+### Files Created
+
+- `src/octa/process/__init__.py` — Module exports for the process management subsystem.
+- `src/octa/process/exceptions.py` — Exception hierarchy (`ProcessError`, `GodotNotFoundError`, `GodotProjectNotFoundError`, `ProcessAlreadyRunningError`, `ProcessLaunchError`).
+- `src/octa/process/state.py` — `ProcessState` enum tracking the 6 lifecycle states.
+- `src/octa/process/validator.py` — Environment and path validation logic (`validate_godot_environment`).
+- `src/octa/process/manager.py` — `GodotProcessManager` core implementation with QProcess management, lifecycle signals, timeout timers, generation tracking, and cleanup semantics.
+- `tests/unit/test_process_validator.py` — 22 unit tests for path validation and permission checks.
+- `tests/unit/test_godot_manager.py` — 37 unit tests covering launch, arguments, stdout/stderr capture, stop, force kill, restart sequencing, cleanup idempotency, generation token protection, and exception handling using `MockQProcess`.
+- `tests/integration/test_godot_process_integration.py` — 5 real-binary integration tests against Godot 4.7.2 console binary.
+
+### Files Modified
+
+- `tests/conftest.py` — Registered `integration` pytest marker for real-binary testing.
+- `README.md` — Updated status, What Works Now, project structure, and roadmap for Phase 2.3.
+- `ROADMAP.md` — Marked Milestone 2.3 completed with all sub-tasks checked.
+- `CHANGELOG.md` — Added Phase 2.3 changes under `[Unreleased]`.
+- `docs/architecture.md` — Added Phase 2.3 architectural documentation, state machine, lifecycle semantics, Windows limitations, and test coverage.
+
+### Validation
+
+- **Test Suite:** Ran `pytest -v`, all 85 tests passed in 2.41s (80 unit tests and 5 real Godot integration tests).
+- **Ruff Checks:** Ran `ruff check .` (0 errors) and `ruff format --check .` (23 files already formatted).
+- **Git Diff Check:** Ran `git diff --check`, 0 whitespace errors.
+- **Real Godot Validation:** Tested against `D:\Downloads\Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2-stable_win64_console.exe` (`4.7.2.stable.official.ed1daf0bf`) in headless mode with bounded frames (`--quit-after 10`). Confirmed startup, PID reporting, stdout capture, and clean exit.
+- **Windows Process Cleanup:** Verified stop timeout force-kill and cleanup reliably terminate the direct Godot process and clear the reported PID. Note: Descendant-process containment is not guaranteed by the current implementation (kernel Job Objects and process-tree traversal are deferred).
+- **Godot Integrity:** Verified `git status godot` reports clean working tree (no changes to Godot assets/scripts).
+
+### Blockers
+
+- None.
+
+### Next Step
+
+- Await approval for Milestone 2.3 pre-commit audit and proceed to Milestone 2.4: PySide6 Desktop Interface.

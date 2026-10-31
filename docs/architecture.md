@@ -329,8 +329,117 @@ When loaded via `AppConfig.load(...)`, values are resolved with the following pr
 | Python Packaging & Entry Point | ✅ Implemented (Phase 2.1) | `pyproject.toml`, `src/octa/__main__.py` |
 | Configuration Infrastructure | ✅ Implemented (Phase 2.2) | `octa.core.config.AppConfig` |
 | Logging Infrastructure | ✅ Implemented (Phase 2.2) | `octa.core.logging.setup_logging` |
-| Godot Process Manager | ⬜ Planned (Phase 2.3) | Launch, monitor, and graceful termination |
+| Godot Process Manager | ✅ Implemented (Phase 2.3) | `octa.process.manager.GodotProcessManager`, `QProcess` lifecycle, path validation |
 | PySide6 Desktop UI / Tray | ⬜ Planned (Phase 2.4) | System tray icon, diagnostic control window |
 | WebSocket Communication Bridge | ⬜ Planned (Phase 3.0) | Localhost-only JSON RPC bridge |
 | AI Pipeline & Screen Capture | ⬜ Planned (Phase 4.0) | Vision analysis, guidance generation |
 | Voice Interaction (STT/TTS) | ⬜ Planned (Phase 5.0) | Speech synthesis and recognition |
+
+---
+
+## Phase 2.3 — Implemented Godot Process Manager Architecture
+
+The following describes the **actual** Godot process management architecture implemented in Phase 2 Milestone 2.3 under `src/octa/process/`.
+
+### Subsystem Layout (`src/octa/process/`)
+
+```
+src/octa/process/
+├── __init__.py                # Public exports (GodotProcessManager, ProcessState, exceptions)
+├── exceptions.py              # Dedicated exception hierarchy
+├── manager.py                 # GodotProcessManager (PySide6 QProcess lifecycle management)
+├── state.py                   # ProcessState enum
+└── validator.py               # Pre-flight executable and project path validation
+```
+
+### Core Responsibilities & Components
+
+#### 1. Path Validation (`validator.py`)
+- `validate_godot_environment(executable_path, project_dir)`:
+  - Resolves executable path, checks file existence and executable permissions (`os.X_OK`).
+  - Resolves project directory, confirms directory existence, and verifies `project.godot` is present.
+  - Returns `tuple[Path, Path]` of fully resolved, normalized absolute paths.
+  - Raises `GodotNotFoundError` or `GodotProjectNotFoundError` with descriptive error messages.
+
+#### 2. Process Lifecycle State Machine (`state.py`)
+Managed via the strongly-typed `ProcessState` enum:
+- `STOPPED`: Process is not running and inactive. Initial state and target state after normal exit.
+- `STARTING`: Launch initiated via `start()`, awaiting OS spawn and `QProcess.started` signal.
+- `RUNNING`: Process is actively executing with a valid OS PID.
+- `STOPPING`: Shutdown requested via `stop()`, awaiting process exit or timeout.
+- `CRASHED`: Process terminated unexpectedly or exited with a non-zero code or `CrashExit`.
+- `ERROR`: Startup validation failure or binary execution failure (`FailedToStart`).
+
+State transitions emit the `state_changed(ProcessState)` Qt signal.
+
+#### 3. QProcess Encapsulation & Asynchronous Execution (`manager.py`)
+`GodotProcessManager` inherits from `QObject` and owns an internal `QProcess` instance:
+- **Executable Selection:** Supports both GUI (`Godot_v4.7.2-stable_win64.exe`) and console (`Godot_v4.7.2-stable_win64_console.exe`) binaries. Headless execution is enabled via `headless=True` (appends `--headless`).
+- **Explicit Arguments:** Prevents Windows command-line injection and quoting bugs by passing argument lists directly:
+  `["--path", str(valid_proj)] + (["--headless"] if headless else []) + extra_args`.
+- **Working Directory:** Set to the resolved project directory (`QProcess.setWorkingDirectory(str(valid_proj))`).
+- **Asynchronous Standard I/O:** Listens to `readyReadStandardOutput` and `readyReadStandardError` signals, decodes bytes using UTF-8 (with error replacement), logs lines, and emits `stdout_received(str)` and `stderr_received(str)` non-blocking signals.
+- **PID Reporting:** Records integer PID on `_on_started()` and emits `started(int)`. Resets PID to `None` upon confirmed process exit.
+
+#### 4. Two-Stage Shutdown & Timeout Fallback
+- **Stage 1 (Graceful Request):** `stop(timeout_ms=3000)` transitions state to `STOPPING` and calls `QProcess.terminate()`. On Windows, Qt attempts to post `WM_CLOSE` to the process.
+- **Stage 2 (Force Kill Fallback):** `stop()` arms a single-shot non-blocking `QTimer` (`_shutdown_timer`). If the process does not finish within `timeout_ms`, `_on_shutdown_timeout` calls `QProcess.kill()` (`TerminateProcess` on Windows) and sets `_force_killed = True`.
+- **Signal Finalization:** `_on_finished` captures the exit code and `ExitStatus`, cancels timers, clears the PID, emits `finished(exit_code, status_name)`, and sets final state (`STOPPED` if normal exit 0; `CRASHED` if non-zero exit or `CrashExit`).
+
+#### 5. Process-Generation Token Protection
+- A monotonically increasing counter (`self._generation: int = 0`) is incremented on every `start()`.
+- When `stop()` arms the shutdown timer, it captures `_shutdown_timer_generation = self._generation`.
+- `_on_shutdown_timeout(generation=None)` strictly verifies that the timer generation matches the active process generation. Stale timeouts from a prior process lifecycle (e.g. Process A stopped, finished, Process B started and entered STOPPING) are discarded without killing Process B.
+
+#### 6. Asynchronous Restart Sequencing
+- Calling `restart()` while `RUNNING` or `STARTING` sets `_pending_restart = True` and requests shutdown via `stop()`.
+- The replacement process is **never** launched while the previous process remains active.
+- When `_on_finished` fires, the manager resets `_pending_restart = False` and launches the replacement process with a new generation token.
+- Multiple duplicate `restart()` calls while `STOPPING` are de-duplicated to exactly one replacement launch.
+- If a startup error occurs (`FailedToStart`), `_pending_restart` is dropped immediately to prevent infinite error loops.
+
+#### 7. Idempotent Cleanup Semantics
+- `cleanup()` safely releases process and timer resources.
+- Cancels active shutdown timers and clears pending restart flags.
+- If a process is active, transitions to `STOPPING` and initiates `kill()`, preserving `pid` and postponing `STOPPED` transition until `_on_finished` confirms termination from the OS.
+- If already inactive, immediately transitions to `STOPPED`.
+
+---
+
+## Windows Process Management Limitations & Findings
+
+The following technical findings and limitations are documented from implementation and testing on Windows:
+
+1. **`QProcess.terminate()` in Headless Mode:**
+   - On Windows, `QProcess.terminate()` posts `WM_CLOSE` to top-level Win32 windows belonging to the target process.
+   - Headless console processes (such as Godot running with `--headless`) do not create a Win32 GUI message loop. Consequently, `terminate()` does not cause headless console processes to exit gracefully.
+   - The two-stage shutdown mechanism handles this by allowing the single-shot timeout timer to expire and issuing `kill()` (`TerminateProcess`), cleanly terminating the process.
+
+2. **Process Tree & Descendant Management:**
+   - The integration test confirms termination of the direct Godot process. Descendant-process containment is not guaranteed by the current implementation.
+   - `QProcess` operates directly on the spawned process PID.
+   - On Windows, terminating a parent process via `QProcess` does not inherently guarantee the termination of grandchild processes spawned by that child.
+   - Kernel-level Windows Job Objects with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` provide native orphan prevention, but integrating them with PySide6 presents fundamental race conditions:
+     1. PySide6 executes `CreateProcessW` internally in Qt C++ and only returns the integer PID, not the native process `HANDLE`.
+     2. Calling `OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, ...)` in Python occurs asynchronously after the process has already begun executing, creating a window where child processes can spawn before assignment.
+     3. If the process is launched within an existing Job Object (e.g. within certain IDEs, CI harnesses, or build tools) without nested job support or breakaway privileges, assignment fails with `ERROR_ACCESS_DENIED`.
+   - Kernel Job Object binding is therefore deferred. Future multi-process management should leverage `psutil` process-tree traversal when needed.
+
+3. **No Automatic Crash-Restart Loop:**
+   - The process manager detects abnormal termination and marks the state as `CRASHED`.
+   - It intentionally does **not** implement an unthrottled automatic restart loop. Restarts must be initiated by higher-level supervisory logic or user intervention, preventing runaway CPU thrashing if a corrupt asset or missing dependency causes persistent crashes.
+
+---
+
+## Testing Strategy & Results
+
+The test suite enforces strict separation between unit tests and real-binary integration tests:
+
+1. **Unit Tests (59 tests):**
+   - `tests/unit/test_process_validator.py` (22 tests): Verifies path validation, missing binaries, missing project files, non-executable files, and directory checks.
+   - `tests/unit/test_godot_manager.py` (37 tests): Uses `MockQProcess` to deterministically verify state transitions, signal dispatch, argument building, timeout expiration, stale timer rejection across generations, restart sequencing, cleanup idempotency, and exception handling without running binaries.
+2. **Real Godot Integration Tests (5 tests):**
+   - `tests/integration/test_godot_process_integration.py`: Validates headless startup, PID assignment, stdout streaming, UTF-8 decoding, banner validation, path errors, stop timeout force-kill on Windows, and cleanup against the actual installed Godot 4.7.2 console binary (`4.7.2.stable.official.ed1daf0bf`).
+   - Integration tests are tagged with the `integration` marker and skipped automatically with a documented reason if the Godot binary is not found on the host machine.
+3. **Total Test Suite:**
+   - **85 tests passing** (80 unit tests + 5 real Godot integration tests) in ~2.4 seconds with zero warnings or failures.

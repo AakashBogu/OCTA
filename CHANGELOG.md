@@ -12,6 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Phase 2.3 — Godot Process Manager (2026-11-01)**
+  - `src/octa/process/manager.py` — `GodotProcessManager` QObject subclass managing Godot runtime lifecycle via PySide6 `QProcess`. Supports pre-flight path validation, asynchronous launch with explicit arguments (`--path <dir>`, `--headless`, `extra_args`), stdout/stderr streaming via Qt signals, two-stage shutdown (graceful terminate request + single-shot timeout force-kill), asynchronous restart sequencing (`_pending_restart`), signal-finalized cleanup (`cleanup()`), and process-generation token tracking (`_generation`) to prevent stale shutdown timeouts from affecting newer process instances across lifecycles.
+  - `src/octa/process/state.py` — Strongly-typed `ProcessState` enum defining `STOPPED`, `STARTING`, `RUNNING`, `STOPPING`, `CRASHED`, and `ERROR` lifecycle states.
+  - `src/octa/process/exceptions.py` — Dedicated exception hierarchy: `ProcessError`, `GodotNotFoundError`, `GodotProjectNotFoundError`, `ProcessAlreadyRunningError`, and `ProcessLaunchError`.
+  - `src/octa/process/validator.py` — `validate_godot_environment` verifying that Godot binary exists and is executable, and validating project directory and `project.godot` presence.
+  - `src/octa/process/__init__.py` — Clean public exports for process management subsystem.
+  - `tests/unit/test_godot_manager.py` — 37 unit tests covering initial state, asynchronous launch, headless flag, argument construction, stdout/stderr signal dispatch, normal/crash exit handling, graceful stop, force-kill timeout expiration, stale timeout protection across generations, restart sequencing, cleanup idempotency, and exception handling using `MockQProcess`.
+  - `tests/unit/test_process_validator.py` — 22 unit tests validating executable and project path scenarios.
+  - `tests/integration/test_godot_process_integration.py` — 5 real-binary integration tests validating headless startup, stdout capture, UTF-8 decoding, path validation errors, stop timeout and force kill on Windows, and cleanup against actual installed Godot 4.7.2 console binary (`4.7.2.stable.official.ed1daf0bf`).
+
 - **Phase 2.2 — Configuration & Logging Infrastructure (2026-11-01)**
   - `src/octa/core/config.py` — Strongly-typed `AppConfig` dataclass with multi-tier precedence (Defaults < .env < Environment Variables < Keyword Overrides), safe Windows `%LOCALAPPDATA%` path resolution, and `ConfigError` validation.
   - `src/octa/core/logging.py` — Structured console and rotating file logging (`setup_logging`), idempotent setup avoiding duplicate handlers, and Windows file lock release hooks (`shutdown_logging`).
@@ -42,10 +52,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- `README.md` — Updated to reflect Phase 2 progress, added Python setup instructions, CLI usage, and updated project structure.
-- `ROADMAP.md` — Marked Phase 2.1 and 2.2 completed; broken down Phase 2 into discrete milestones.
-- `docs/PROGRESS.md` — Appended task logs for Milestones 2.1 and 2.2.
-- `docs/architecture.md` — Documented Python application package structure, configuration precedence, and logging subsystem.
+- `README.md` — Updated to reflect Phase 2.3 completion, documented Godot process manager, updated project tree, and verified total test count (85 tests).
+- `ROADMAP.md` — Marked Milestone 2.3 completed with all sub-tasks checked.
+- `CHANGELOG.md` — Documented Phase 2.3 implementation and testing under `[Unreleased]`.
+- `docs/PROGRESS.md` — Appended task log for Milestone 2.3 (Godot Process Manager implementation, lifecycle audit, and real Godot integration tests).
+- `docs/architecture.md` — Added detailed architecture documentation for the Godot process manager subsystem, state machine, lifecycle semantics, Windows limitations, and testing results.
 
 - **Phase 0.1 — Project Foundation (2026-10-28)**
   - `README.md` — Project overview, goals, proposed architecture, and roadmap summary.
