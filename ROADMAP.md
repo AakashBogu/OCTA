@@ -24,7 +24,7 @@
 - [x] Install Godot 4.x and verify editor runs
 - [x] Define Python version and dependency management strategy (`pyproject.toml`, `requirements.txt`)
 - [x] Set up virtual environment tooling (`.venv`)
-- [ ] Install PySide6 and verify a minimal window launches *(deferred to Phase 2.4)*
+- [ ] Install PySide6 and verify a minimal window launches *(deferred to Phase 2.5)*
 - [x] Establish project linting and formatting (`ruff`)
 - [ ] Add pre-commit hooks
 - [x] Verify development environment on a clean Windows machine
@@ -74,27 +74,37 @@
 - [x] Implement asynchronous restart sequencing, cleanup semantics, and crash/error detection
 - [x] Validate against real Godot 4.7.2 binary in headless mode with integration tests (85 tests passing total)
 
-### Milestone 2.4 — PySide6 Desktop Interface *(planned)*
+### Milestone 2.4 — Communication Protocol & Python Qt WebSocket Server *(complete)*
 
-- [ ] Build system tray integration with PySide6 (`QSystemTrayIcon`)
+#### Phase 2.4.1 — Protocol Schema & Datatypes *(complete)*
+- [x] Define protocol v1 envelopes and typed message payloads
+- [x] Enforce strict SemVer compatibility and 64 KiB UTF-8 message limits
+- [x] Define connection lifecycle states and safe authentication error handling
+- [x] Test protocol schema, encoding, payloads, and boundaries
+
+#### Phase 2.4.2 — Python Qt WebSocket Server *(complete)*
+- [x] Implement QWebSocketServer on the Qt event loop, loopback-only
+- [x] Prefer port 8765 with operating-system port-0 fallback
+- [x] Enforce single-client authentication, session lifecycle, timeouts, and message-size limits
+- [x] Implement correlated heartbeat, state-command, and SHUTDOWN_ACK handling
+- [x] Add server/session tests and update architecture and project documentation
+
+### Milestone 2.5 — PySide6 Desktop Interface *(planned)*
+- [ ] Build system tray integration with PySide6 (QSystemTrayIcon)
 - [ ] Create companion diagnostic and monitor window
-- [ ] Connect UI controls to process manager
+- [ ] Connect UI controls to process manager and communication server
 
-### Milestone 2.5 — Documentation & Phase 2 Wrap-up *(planned)*
-
-- [ ] Complete Phase 2 verification and documentation sync
-
----
+### Milestone 2.6 — Documentation & Phase 2 Wrap-up *(planned)*
+- [ ] Complete remaining Phase 2 verification and documentation sync
 
 ## Phase 3 — Communication Bridge
 
-### Phase 3.0 — WebSocket Bridge *(planned)*
+### Phase 3.0 — Godot Client Integration *(planned)*
 
-- [ ] Implement WebSocket server in Python
-- [ ] Implement WebSocket client in Godot (GDScript)
-- [ ] Define message protocol (JSON schema)
-- [ ] Handle connection lifecycle (connect, reconnect, disconnect)
-- [ ] End-to-end test: Python sends command → Godot plays animation
+- [ ] Implement the Godot WebSocket client in GDScript
+- [ ] Connect the client to the authenticated Python server
+- [ ] Handle connection lifecycle and reconnect behavior
+- [ ] End-to-end test: Python sends a state command and Godot plays the matching animation
 
 ---
 

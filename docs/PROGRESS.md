@@ -256,3 +256,37 @@ Designed and implemented a reliable, Windows-compatible Godot process management
 ### Next Step
 
 - Await approval for Milestone 2.3 pre-commit audit and proceed to Milestone 2.4: PySide6 Desktop Interface.
+
+## Task: Phase 2.4.2 — Python Qt WebSocket Server
+**Date:** 2026-11-09
+**Phase:** 2.4.2
+
+### Summary
+
+Implemented the authenticated, loopback-only Python WebSocket server and session lifecycle with PySide6.QtWebSockets and the Qt event loop. The listener prefers port 8765 and falls back to an OS-assigned port. It supports one authenticated client, protocol v1 messages, correlated responses, heartbeat and shutdown acknowledgements, and transport/protocol size and timeout limits.
+
+### Files Changed
+
+- src/octa/communication/server.py — Added WebSocketServer and WebSocketSession, secure per-start token generation, loopback binding, port fallback, single-client enforcement, heartbeat, state commands, and SHUTDOWN_ACK handling.
+- src/octa/communication/__init__.py — Exported the server/session API and default port.
+- tests/unit/test_communication_server.py — Added 22 Qt loopback tests for binding, fallback, authentication, reconnects, timeouts, size limits, message direction, correlation, and shutdown.
+- README.md — Updated status, phase summary, test count, and project tree.
+- ROADMAP.md — Recorded Phase 2.4.1 and 2.4.2 completion and moved desktop UI to Phase 2.5.
+- CHANGELOG.md — Recorded the protocol and server milestones.
+- docs/architecture.md — Documented protocol v1 transport, lifecycle, limits, and token handling.
+
+### Validation
+
+- Targeted: .venv\Scripts\python.exe -m pytest -v -p no:cacheprovider tests/unit/test_communication_server.py tests/unit/test_communication_protocol.py — 48 passed in 1.54s.
+- Full suite: .venv\Scripts\python.exe -m pytest -v — 133 passed in 5.99s.
+- Ruff lint: .venv\Scripts\ruff.exe check . — All checks passed.
+- Ruff format: .venv\Scripts\ruff.exe format --check . — 31 files already formatted.
+- Whitespace: git diff --check — no whitespace errors.
+
+### Blockers
+
+- None. The Godot client and app-level server startup wiring remain future work. The token is available in memory to a local caller; it must not be passed in command-line arguments because Windows process inspection can expose them.
+
+### Next Step
+
+- Implement the Godot WebSocket client and a safe local token handoff in Phase 3.

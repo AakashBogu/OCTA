@@ -66,7 +66,7 @@ The two processes communicate over a **local WebSocket connection** (bound to `l
 | **Screen Capture** | Captures screen regions for progress verification | Win32 APIs or `mss` library (TBD) |
 | **Voice I/O** | Speech-to-text input and text-to-speech output | STT/TTS engines (TBD) |
 | **PySide6 UI** | System tray icon, settings dialogs, notification overlays | PySide6 |
-| **WebSocket Server** | Hosts the local WS endpoint for Godot communication | `websockets` or `aiohttp` (TBD) |
+| **WebSocket Server** | Hosts the authenticated local endpoint for Godot communication | PySide6.QtWebSockets.QWebSocketServer |
 
 ### Godot Process
 
@@ -83,48 +83,23 @@ The two processes communicate over a **local WebSocket connection** (bound to `l
 
 ### Transport
 
-- **Protocol:** WebSocket (RFC 6455)
-- **Binding:** `ws://127.0.0.1:<port>` (localhost only — no network exposure)
-- **Port:** Configurable via environment variable; default TBD
-- **Message format:** JSON
+- **Protocol:** WebSocket (RFC 6455), implemented with PySide6.QtWebSockets.QWebSocketServer.
+- **Event loop:** The server and sessions are QObjects and rely on the application Qt event loop; they perform no blocking socket waits.
+- **Binding:** ws://127.0.0.1:<port> only.
+- **Port selection:** Prefer 8765; if unavailable, bind port 0 and report the selected OS-assigned port. Callers may request port 0 directly.
+- **Client capacity:** One accepted client session at a time.
+- **Authentication:** On each start, generate a 32-byte cryptographically random URL-safe bearer token. The client presents it in HELLO; compare with a constant-time comparison.
+- **Timeouts:** Five-second WebSocket handshake and HELLO authentication deadlines; five-second heartbeat and shutdown acknowledgement intervals.
+- **Size limits:** Qt rejects incoming frames/messages above 65,536 bytes, while ProtocolHandler independently limits encoded and decoded UTF-8 JSON messages to 65,536 bytes.
 
-### Message Structure (proposed)
+### Protocol v1 Envelope
 
-```json
-{
-  "type": "command | event | response",
-  "action": "string — the specific action name",
-  "payload": { },
-  "timestamp": "ISO 8601",
-  "id": "uuid — for request/response correlation"
-}
-```
+Every message is a JSON object containing protocol_version, message_id, message_type, timestamp, correlation_id, and payload. The message_type selects one of the typed protocol payloads defined in octa.communication.messages.
 
-### Example Messages (proposed)
-
-**Python → Godot: Play animation**
-```json
-{
-  "type": "command",
-  "action": "play_animation",
-  "payload": { "animation": "point_right", "speed": 1.0 },
-  "timestamp": "2026-10-28T12:00:00Z",
-  "id": "a1b2c3d4"
-}
-```
-
-**Godot → Python: Animation completed**
-```json
-{
-  "type": "event",
-  "action": "animation_complete",
-  "payload": { "animation": "point_right" },
-  "timestamp": "2026-10-28T12:00:01Z",
-  "id": "a1b2c3d4"
-}
-```
-
----
+- protocol_version must be strict SemVer and use supported major version 1.
+- Each request receives a new message_id. A response sets correlation_id to the request's message_id; events without a matching request use no correlation_id.
+- HELLO/WELCOME establish the session. PING/PONG check liveness. SET_STATE/SET_STATE_ACK command and acknowledge character state changes. STATE_CHANGED reports the client's state. SHUTDOWN/SHUTDOWN_ACK complete the graceful client shutdown handshake. ERROR carries a structured failure.
+- The current milestone implements the Python server. The Godot client and end-to-end application wiring are not implemented yet.
 
 ## Data Flow
 
@@ -330,8 +305,9 @@ When loaded via `AppConfig.load(...)`, values are resolved with the following pr
 | Configuration Infrastructure | ✅ Implemented (Phase 2.2) | `octa.core.config.AppConfig` |
 | Logging Infrastructure | ✅ Implemented (Phase 2.2) | `octa.core.logging.setup_logging` |
 | Godot Process Manager | ✅ Implemented (Phase 2.3) | `octa.process.manager.GodotProcessManager`, `QProcess` lifecycle, path validation |
-| PySide6 Desktop UI / Tray | ⬜ Planned (Phase 2.4) | System tray icon, diagnostic control window |
-| WebSocket Communication Bridge | ⬜ Planned (Phase 3.0) | Localhost-only JSON RPC bridge |
+| PySide6 Desktop UI / Tray | ⬜ Planned (Phase 2.5) | System tray icon, diagnostic control window |
+| Python Qt WebSocket Server | ✅ Implemented (Phase 2.4.2) | Authenticated single-client protocol v1 server on IPv4 loopback |
+| Godot WebSocket Client | ⬜ Planned (Phase 3.0) | GDScript client and end-to-end bridge |
 | AI Pipeline & Screen Capture | ⬜ Planned (Phase 4.0) | Vision analysis, guidance generation |
 | Voice Interaction (STT/TTS) | ⬜ Planned (Phase 5.0) | Speech synthesis and recognition |
 
@@ -443,3 +419,23 @@ The test suite enforces strict separation between unit tests and real-binary int
    - Integration tests are tagged with the `integration` marker and skipped automatically with a documented reason if the Godot binary is not found on the host machine.
 3. **Total Test Suite:**
    - **85 tests passing** (80 unit tests + 5 real Godot integration tests) in ~2.4 seconds with zero warnings or failures.
+
+## Phase 2.4.1 & 2.4.2 — Implemented Communication Server
+
+The protocol schemas and Python server live under src/octa/communication/. The server exposes start(), stop(), set_state(), and request_shutdown() for higher-level application code. Construct it on the Qt application thread and keep the Qt event loop running.
+
+### Session lifecycle
+
+1. start() rotates the in-memory authentication token and listens on 127.0.0.1. Port 8765 is preferred; an occupied port triggers a port-0 fallback.
+2. The first WebSocket client receives a five-second authentication deadline. Only a valid HELLO with a constant-time token match advances the session to AUTHENTICATED; WELCOME correlates to the HELLO message_id.
+3. Additional clients are closed while one session is active. After disconnect or failure, the server returns to LISTENING if its listener remains open.
+4. The session sends periodic PING messages and requires matching PONG correlation IDs. Heartbeat failure closes the session.
+5. set_state() sends SET_STATE and tracks its message_id. SET_STATE_ACK must correlate to that ID and acknowledge the requested state.
+6. request_shutdown() sends SHUTDOWN, pauses heartbeat traffic, and waits up to five seconds for a matching SHUTDOWN_ACK. A positive acknowledgement closes the session; a negative acknowledgement resumes the authenticated session.
+
+### Security and operational limits
+
+- Qt enforces the 65,536-byte incoming frame and message cap before the application receives the complete message. ProtocolHandler applies the same byte limit to incoming and outgoing JSON.
+- The random token is available through the in-memory auth_token property for a future local handoff. It is not emitted in signals or logs. Passing it on a command line is unsafe because local process inspection can reveal arguments; the Godot launch handoff remains to be designed.
+- The server does not launch Godot or create a client. This milestone only implements the server endpoint and protocol session handling.
+- tests/unit/test_communication_server.py exercises loopback binding, fallback, authentication, client limits, protocol direction, correlation, timeouts, and transport size enforcement.

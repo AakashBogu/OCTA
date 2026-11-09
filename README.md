@@ -4,7 +4,7 @@
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, and progress verification.
 
-> **Note:** OCTA is in active early development. The Phase 1 Godot 3D character prototype is implemented and runnable. The Phase 2 Python desktop application foundation (packaging, configuration, logging, process management, and test infrastructure) is implemented and verified against the real Godot 4.7.2 binary. PySide6 desktop UI (system tray / monitor window) and WebSocket inter-process communication are scheduled for upcoming milestones.
+> Note: OCTA is in active early development. The Phase 1 Godot character and Phase 2 Python foundation are implemented. Phase 2.4.1 defines protocol v1 and Phase 2.4.2 provides the Python Qt WebSocket server. The Godot WebSocket client, desktop UI, AI integration, voice, screen capture, and installer remain planned.
 
 ---
 
@@ -34,7 +34,7 @@ OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop
 
 ## What Works Now
 
-OCTA currently includes three verified foundational components:
+OCTA currently includes four verified foundational components:
 
 ### 1. Phase 1 Godot 3D Character Prototype
 - A simple 3D robot character built programmatically from Godot primitive meshes (spheres, capsules, cylinders).
@@ -60,10 +60,18 @@ OCTA currently includes three verified foundational components:
 - Asynchronous restart sequencing (`restart()`) ensuring replacement processes never launch before the previous process finishes.
 - Asynchronous, idempotent cleanup semantics (`cleanup()`) using QProcess signals for lifecycle finalization.
 - Monotonically increasing process-generation token (`_generation`) preventing stale shutdown timeouts from terminating replacement processes across lifecycles.
-- Comprehensive test coverage: 59 unit tests (mocked `QProcess`) and 5 integration tests against real Godot 4.7.2 binary (85 automated tests total).
+- The full project test suite now contains 133 automated tests, including dedicated protocol and WebSocket server coverage.
 - **Process Termination Scope:** The integration tests confirm termination of the direct Godot process. Descendant-process containment is not guaranteed by the current implementation (kernel Job Objects and process-tree traversal are deferred).
 
-> **Component Coupling Note:** Python now possesses full process management capabilities to launch, monitor, restart, and terminate the Godot companion runtime. PySide6 desktop UI (system tray / monitor window) in Milestone 2.4 and localhost WebSocket communication in Phase 3 will link user controls and bidirectional interaction.
+### 4. Phase 2.4 Communication Protocol & Qt WebSocket Server
+- Versioned protocol v1 envelopes and typed payloads for authentication, heartbeat, state changes, errors, and shutdown acknowledgements.
+- A Qt event-loop server using PySide6 QWebSocketServer, bound only to 127.0.0.1.
+- The server prefers port 8765 and asks the operating system for an available port if that port is occupied. Port 0 can be requested directly.
+- A single authenticated client is accepted at a time. The server generates a fresh in-memory bearer token for each start, compares it safely, and never logs it.
+- Handshake, authentication, heartbeat, shutdown, and transport message-size limits are enforced.
+- The Godot WebSocket client and app-level server startup wiring are future work; this phase does not connect to the Godot process yet.
+
+> **Component Coupling Note:** Python can manage the Godot process and host the authenticated localhost WebSocket server. The desktop UI and Godot client will connect these capabilities in later milestones.
 
 ---
 
@@ -111,8 +119,10 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 2.1 | Python packaging & project foundation | ✅ Complete |
 | 2.2 | Configuration & logging infrastructure | ✅ Complete |
 | 2.3 | Godot process manager | ✅ Complete |
-| 2.4 | PySide6 desktop interface | ⬜ Planned |
-| 3.0 | WebSocket bridge | ⬜ Planned |
+| 2.4.1 | Communication protocol v1 | ✅ Complete |
+| 2.4.2 | Python Qt WebSocket server | ✅ Complete |
+| 2.5 | PySide6 desktop interface | ⬜ Planned |
+| 3.0 | Godot WebSocket client and end-to-end bridge | ⬜ Planned |
 | 4.0 | Screen capture & AI integration | ⬜ Planned |
 | 5.0 | Voice interaction | ⬜ Planned |
 | 6.0 | End-to-end tutorial engine | ⬜ Planned |
@@ -121,12 +131,12 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 
 ## Development Status
 
-- **Current phase:** 2.0 — Core Python Application (Milestones 2.1, 2.2, and 2.3 completed)
+- **Current phase:** 2.4 — Communication protocol and Python Qt WebSocket server completed; Godot client and desktop UI remain planned.
 - **What exists:**
   - Runnable Godot 4.7 project with a 3D robot character, idle animations, and a four-state state machine.
   - Python 3.12 package foundation with CLI version flag, configuration system, structured logging, and Godot process manager.
-  - Full automated test suite (85 tests passing: 80 unit tests and 5 real Godot integration tests).
-- **What does not exist yet:** PySide6 desktop UI/system tray, WebSocket bridge, AI integration, voice, screen capture, or installers.
+  - Full automated test suite: 133 tests (including 22 server tests, 26 protocol tests, and 5 real Godot integration tests).
+- **What does not exist yet:** Godot WebSocket client, app-level server startup integration, PySide6 desktop UI/system tray, AI integration, voice, screen capture, or installers.
 
 ---
 
@@ -206,17 +216,26 @@ OCTA/
 │       │   ├── __init__.py       # Core exports
 │       │   ├── config.py         # AppConfig dataclass & environment parsing
 │       │   └── logging.py        # Structured console & rotating file logging
+│       ├── communication/        # Protocol v1 and Qt WebSocket server
+│       │   ├── __init__.py       # Public communication exports
+│       │   ├── exceptions.py     # Protocol, authentication, and transport exceptions
+│       │   ├── messages.py       # Envelopes and typed protocol payloads
+│       │   ├── protocol.py       # Strict SemVer, JSON encoding, and size checks
+│       │   ├── server.py         # Loopback QWebSocketServer and client sessions
+│       │   └── state.py          # Communication lifecycle states
 │       └── process/              # Godot process lifecycle management
 │           ├── __init__.py       # Process module exports
 │           ├── exceptions.py     # Process management exception hierarchy
 │           ├── manager.py        # GodotProcessManager (PySide6 QProcess lifecycle)
 │           ├── state.py          # ProcessState enum
 │           └── validator.py      # Executable and project path validation
-├── tests/                        # Automated test suite (85 tests passing)
+├── tests/                        # Automated test suite (133 tests passing)
 │   ├── conftest.py               # Shared test fixtures & custom markers
 │   ├── integration/              # Real binary integration tests
 │   │   └── test_godot_process_integration.py  # Real Godot headless integration tests
-│   └── unit/                     # Isolated unit tests (mocked doubles)
+│   └── unit/                     # Isolated unit tests and Qt loopback tests
+│       ├── test_communication_protocol.py # Protocol v1 schema and framing tests
+│       ├── test_communication_server.py   # Qt WebSocket server/session tests
 │       ├── test_config.py        # Configuration & precedence tests
 │       ├── test_foundation.py    # Package & version CLI tests
 │       ├── test_godot_manager.py # GodotProcessManager lifecycle & timer tests

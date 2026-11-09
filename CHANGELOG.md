@@ -11,7 +11,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-
+- **Phase 2.4.1 — Protocol Schema & Datatypes**
+  - src/octa/communication/messages.py, protocol.py, state.py, and exceptions.py — Added typed protocol v1 envelopes and payloads, strict SemVer compatibility checks, UTF-8 JSON framing with a 64 KiB limit, lifecycle states, and secret-safe authentication exceptions.
+  - tests/unit/test_communication_protocol.py — Added 26 tests for payload schemas, envelope validation, message-size boundaries, and protocol compatibility.
+- **Phase 2.4.2 — Python Qt WebSocket Server (2026-11-09)**
+  - src/octa/communication/server.py — Added an event-loop-driven QWebSocketServer bound to 127.0.0.1, preferring port 8765 and falling back to an OS-assigned port. Each start creates a fresh secrets.token_urlsafe(32) bearer token; comparisons use hmac.compare_digest, and token values are never logged.
+  - Added single-client WebSocketSession lifecycle, HELLO/WELCOME authentication, correlated PING/PONG and SET_STATE_ACK handling, state-change notifications, and a correlated SHUTDOWN/SHUTDOWN_ACK timeout handshake.
+  - Enforced Qt transport and protocol message-size limits, handshake/authentication/heartbeat/shutdown timeouts, and text-only JSON messages.
+  - tests/unit/test_communication_server.py — Added 22 loopback tests for binding, fallback, authentication, client limits, message handling, correlation, lifecycle, and limits.
+  - No dependency changes; PySide6 already provides Qt WebSockets. The Godot client remains out of scope for this milestone.
 - **Phase 2.3 — Godot Process Manager (2026-11-01)**
   - `src/octa/process/manager.py` — `GodotProcessManager` QObject subclass managing Godot runtime lifecycle via PySide6 `QProcess`. Supports pre-flight path validation, asynchronous launch with explicit arguments (`--path <dir>`, `--headless`, `extra_args`), stdout/stderr streaming via Qt signals, two-stage shutdown (graceful terminate request + single-shot timeout force-kill), asynchronous restart sequencing (`_pending_restart`), signal-finalized cleanup (`cleanup()`), and process-generation token tracking (`_generation`) to prevent stale shutdown timeouts from affecting newer process instances across lifecycles.
   - `src/octa/process/state.py` — Strongly-typed `ProcessState` enum defining `STOPPED`, `STARTING`, `RUNNING`, `STOPPING`, `CRASHED`, and `ERROR` lifecycle states.
