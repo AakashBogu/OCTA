@@ -1,6 +1,6 @@
 # OCTA — Roadmap
 
-> **Last updated:** 2026-11-01
+> **Last updated:** 2026-11-09
 >
 > Milestones marked with [x] have been completed and verified.
 
@@ -46,7 +46,7 @@
 
 ---
 
-## Phase 2 — Core Python Application *(in progress)*
+## Phase 2 — Core Python Application *(complete)*
 
 ### Milestone 2.1 — Python Packaging & Project Foundation *(complete)*
 
@@ -115,15 +115,17 @@
 
 ---
 
-## Phase 4 — Intelligence Layer
+## Phase 4 — Intelligence Layer *(complete)*
 
-### Phase 4.0 — Screen Capture & AI Integration *(planned)*
+### Phase 4.0 — Screen Capture & AI Integration *(complete)*
 
-- [ ] Implement screen region capture
-- [ ] Integrate LLM API for instruction generation
-- [ ] Build task definition format (steps, expected outcomes)
-- [ ] Implement progress verification via screen analysis
-- [ ] Create visual overlay system (highlights, arrows)
+- [x] Implement Windows screen and region capture gated on explicit user actions (`ScreenCapturer`, `CaptureRegion`, `CapturedImage` held in memory by default and never logged)
+- [x] Build and validate task definition format for instructions, steps, expected outcomes, and progress results (`TaskDefinition`, `TaskStep`, `ExpectedOutcome`, `OverlayHint`, `GuidanceInstruction`, `ProgressResult`)
+- [x] Require clear user consent before sending captured screen content to a remote service (`ConsentRequest`, `ConsentDecision`, `ScreenShareConsentDialog`, `ConsentManager` bound to exact outbound request including image digest, exact endpoint URL digest, model, system/user prompts, task/step context, and purpose)
+- [x] Integrate isolated, configurable OpenAI-compatible LLM adapter (`LLMConfig`, `OpenAICompatibleAdapter` reading endpoint, model, and API key from config/environment, enforcing HTTPS for remote endpoints, explicit loopback-only HTTP for local development, and an explicit no-redirect policy, without live calls in tests)
+- [x] Implement structured progress verification (`ProgressVerifier`, `ProgressStatus`: `complete`, `incomplete`, `uncertain`) that never claims success when evidence is unclear
+- [x] Create passive, click-through Qt visual overlay system for validated highlights and arrows (`GuidanceOverlayWidget`, `HighlightSpec`, `ArrowSpec`, `OverlayBounds`)
+- [x] Add focused unit tests with mocked screen capture and HTTP responses (56 new unit tests; 236 Python tests + 13 Godot protocol tests total)
 
 ---
 

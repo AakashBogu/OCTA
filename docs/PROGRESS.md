@@ -390,3 +390,61 @@ Designed, implemented, and tested the PySide6 desktop interface for OCTA. Built 
 - User review of Phase 2.5 changes.
 - Stage, commit, and push Phase 2.5 changes upon user instruction.
 - Proceed to Phase 4.0: Screen Capture & AI Integration.
+
+---
+
+## Task: Phase 4.0 — Screen Capture & AI Integration
+
+**Date:** 2026-11-09
+**Phase:** 4.0
+
+### Summary
+
+Designed, implemented, and verified the Phase 4.0 Intelligence Layer (`src/octa/intelligence/`) in small, testable modules using PySide6 and the Python standard library (zero new dependencies added). Implemented Windows screen and region capture gated on explicit user initiation (`user_initiated=True`) with in-memory PNG encoding (`QBuffer`) that never saves screenshots to disk by default and never logs raw image bytes or base64 strings. Defined and validated task schemas (`TaskDefinition`, `TaskStep`, `ExpectedOutcome`, `OverlayHint`, `GuidanceInstruction`, `ProgressResult` with `ProgressStatus`: `complete`, `incomplete`, `uncertain`). Implemented a remote screen-sharing consent workflow and modal Qt dialog (`ConsentRequest`, `ConsentDecision`, `ScreenShareConsentDialog`, `ConsentManager`) that displays the complete outbound content (both system and user prompts, image preview, dimensions, digests) and destination (endpoint, model, task/step context, purpose), defaults to cancellation, binds single-use approval to the canonical SHA-256 digest of the entire outbound request (`request_sha256`), and rejects reused or mismatched approvals before any network request. Built an isolated, configurable OpenAI-compatible LLM adapter (`LLMConfig`, `OpenAICompatibleAdapter`, `validate_llm_endpoint`) reading endpoint, model, and API key from `AppConfig`/environment, requiring HTTPS for all remote endpoints (permitting plain HTTP only for loopback hosts under explicit `OCTA_LLM_ALLOW_LOCAL_HTTP=true` / `allow_local_http=True`), never sending a bearer API key to a non-HTTPS remote endpoint, redacting secrets from logs/errors, and blocking live HTTP calls during `pytest`. Built a conservative progress verifier (`ProgressVerifier`, `parse_verification_output`) that downgrades `"complete"` claims to `"uncertain"` when confidence is below threshold (`0.75`), required elements are missing/unconfirmed, or model reasoning is ambiguous. Implemented a passive, click-through Qt visual overlay (`GuidanceOverlayWidget`, `HighlightSpec`, `ArrowSpec`, `OverlayBounds`) for validated highlights and arrows that never clicks, types, or controls other applications. Added 49 focused unit tests with mocked screen capture and HTTP responses.
+
+### Files Created
+
+- `src/octa/intelligence/__init__.py` — Public package exports for the Phase 4.0 Intelligence Layer.
+- `src/octa/intelligence/exceptions.py` — Exception hierarchy for screen capture, task validation, consent, LLM transport/output, and visual overlays.
+- `src/octa/intelligence/capture.py` — `CaptureRegion`, `CapturedImage`, `ScreenCapturer`, `grab_screen_with_qt`, and `encode_qimage_to_png_bytes`.
+- `src/octa/intelligence/tasks.py` — `TaskDefinition`, `TaskStep`, `ExpectedOutcome`, `OverlayHint`, `OverlayElementType`, `GuidanceInstruction`, `ProgressResult`, and `ProgressStatus`.
+- `src/octa/intelligence/consent.py` — `ConsentRequest`, `ConsentDecision`, `ScreenShareConsentDialog`, `ConsentManager`, `compute_outbound_request_sha256`, `format_endpoint_for_disclosure`, and `sanitize_endpoint_for_display`.
+- `src/octa/intelligence/llm.py` — `LLMConfig`, `OpenAICompatibleAdapter`, `LLMResponse`, `NoRedirectHandler`, `build_no_redirect_opener`, `validate_llm_endpoint`, `extract_json_object`, and `redact_sensitive_text`.
+- `src/octa/intelligence/verifier.py` — `ProgressVerifier`, `parse_verification_output`, `parse_instruction_output`, `build_verification_prompt`, and `build_instruction_prompt`.
+- `src/octa/intelligence/overlay.py` — `OverlayBounds`, `HighlightSpec`, `ArrowSpec`, `GuidanceOverlayWidget`, and `overlay_hint_to_spec`.
+- `tests/unit/test_screen_capture.py` — 10 unit tests covering region validation, explicit user action enforcement, in-memory capture, log privacy, optional persistence, and interactive cancellation.
+- `tests/unit/test_tasks.py` — 6 unit tests covering task/step/outcome/result schema validation, JSON roundtrips, and contradictory claim rejection.
+- `tests/unit/test_consent.py` — 6 unit tests covering complete prompt/destination disclosure, URL sanitization and secret-safe redacted indicators (`[REDACTED]`) without exposing raw URL secrets or hash fingerprints, dialog preview/approval/cancellation, full outbound-request and exact-endpoint SHA-256 binding, and single-use approval consumption.
+- `tests/unit/test_llm_adapter.py` — 21 unit tests covering environment loading, secret masking, missing credentials, pytest live-network blocking, consent enforcement/cancellation, rejection of changed prompts/endpoints/query parameters/URL credentials or reused approvals for the same image, HTTP redirect blocking across all redirect status codes (`301`, `302`, `303`, `307`, `308`), HTTPS enforcement for remote endpoints and opt-in loopback HTTP, mock HTTP responses, error redaction, and malformed model outputs.
+- `tests/unit/test_progress_verifier.py` — 5 unit tests covering `complete`/`incomplete`/`uncertain` verification, conservative downgrades on low confidence or unconfirmed elements or ambiguous reasoning, end-to-end mocked verification, and instruction generation.
+- `tests/unit/test_overlay.py` — 6 unit tests covering coordinate/bounds validation, passive click-through window flags/attributes, atomic annotation updates, and `QPainter` pixel rendering.
+
+### Files Modified
+
+- `src/octa/core/config.py` — Added `llm_endpoint`, `llm_model`, `llm_api_key` (`repr=False`), `llm_timeout_seconds`, `llm_allow_local_http` (`OCTA_LLM_ALLOW_LOCAL_HTTP`), `is_loopback_host`, and `capture_save_screenshots` configuration fields and validation.
+- `.env.example` — Documented `OCTA_LLM_*`, `OCTA_LLM_ALLOW_LOCAL_HTTP`, and `OCTA_CAPTURE_SAVE_SCREENSHOTS` environment variables without secrets.
+- `tests/unit/test_config.py` — Added `test_phase4_llm_and_capture_config` and `test_phase4_https_and_loopback_http_config_policy` verifying Phase 4 configuration loading, secret masking, HTTPS enforcement, and loopback HTTP opt-in.
+- `README.md` — Updated project status, "What Works Now", architecture table, roadmap table, development status, and project structure tree.
+- `ROADMAP.md` — Marked Phase 4.0 completed with detailed checklist items.
+- `CHANGELOG.md` — Added Phase 4.0 entry under `[Unreleased]`.
+- `docs/architecture.md` — Updated status, configuration fields, component implementation table, and added Phase 4.0 architectural documentation.
+- `docs/PROGRESS.md` — Appended this task entry.
+
+### Validation
+
+- **Focused Consent & LLM Tests:** Ran `.\.venv\Scripts\python.exe -m pytest tests/unit/test_consent.py tests/unit/test_llm_adapter.py -v`, all 27 tests passed.
+- **Phase 4.0 Unit Tests:** Ran `.\.venv\Scripts\python.exe -m pytest tests/unit/test_config.py tests/unit/test_screen_capture.py tests/unit/test_tasks.py tests/unit/test_consent.py tests/unit/test_llm_adapter.py tests/unit/test_progress_verifier.py tests/unit/test_overlay.py -v`, all 65 tests passed.
+- **Full Python Test Suite:** Ran `.\.venv\Scripts\python.exe -m pytest -v`, all 236 tests passed.
+- **Ruff Linter:** Ran `.\.venv\Scripts\ruff.exe check .`, all checks passed with 0 errors across 57 files.
+- **Ruff Formatter:** Ran `.\.venv\Scripts\ruff.exe format --check .`, all 57 files properly formatted.
+- **Git Diff Check:** Ran `git diff --check`, 0 whitespace errors.
+- **Git Staging Safety:** Verified via `git status --short` that all changes remain unstaged and uncommitted for review.
+
+### Blockers
+
+- None.
+
+### Next Step
+
+- User review of Phase 4.0 changes.
+- Proceed to Phase 5.0 (Voice Interaction) or Phase 6.0 (End-to-End Tutorial Engine).

@@ -6,10 +6,12 @@ safe Windows path resolution, and validation.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from dotenv import dotenv_values
 
@@ -19,6 +21,10 @@ class ConfigError(ValueError):
 
 
 VALID_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+DEFAULT_LLM_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+DEFAULT_LLM_MODEL = "gpt-4o-mini"
+DEFAULT_LLM_TIMEOUT_SECONDS = 30.0
+DEFAULT_LLM_ALLOW_LOCAL_HTTP = False
 
 
 def _get_default_app_dir() -> Path:
@@ -58,6 +64,63 @@ def _parse_int(value: Any, field_name: str, min_value: int | None = None) -> int
     return parsed
 
 
+def _parse_float(value: Any, field_name: str, *, strictly_positive: bool = False) -> float:
+    """Safely parse float values with optional strictly-positive constraint."""
+    if isinstance(value, bool):
+        raise ConfigError(f"Invalid float value '{value}' for '{field_name}'.")
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"Invalid float value '{value}' for '{field_name}'.") from exc
+    if strictly_positive and parsed <= 0:
+        raise ConfigError(f"Value for '{field_name}' must be greater than 0, got {parsed}.")
+    return parsed
+
+
+def is_loopback_host(hostname: str | None) -> bool:
+    """Return True only if hostname is localhost or an IPv4/IPv6 loopback address."""
+    if not hostname or not isinstance(hostname, str):
+        return False
+    normalized = hostname.strip().strip("[]").lower()
+    if normalized == "localhost":
+        return True
+    try:
+        addr = ipaddress.ip_address(normalized)
+    except ValueError:
+        return False
+    return addr.is_loopback
+
+
+def _validate_endpoint_url(
+    value: Any,
+    field_name: str,
+    *,
+    allow_local_http: bool = False,
+) -> str:
+    """Validate that an endpoint is HTTPS, or loopback HTTP when explicitly permitted."""
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError(f"Field '{field_name}' must be a non-empty URL string.")
+    cleaned = value.strip()
+    parsed = urlparse(cleaned)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or not parsed.hostname:
+        raise ConfigError(
+            f"Invalid URL '{cleaned}' for '{field_name}'. Must use https (or loopback http) "
+            "with a host."
+        )
+    if parsed.scheme == "http":
+        if not is_loopback_host(parsed.hostname):
+            raise ConfigError(
+                f"Insecure remote HTTP endpoint '{cleaned}' is not permitted for '{field_name}'. "
+                "Remote LLM endpoints must use HTTPS."
+            )
+        if not allow_local_http:
+            raise ConfigError(
+                f"Loopback HTTP endpoint '{cleaned}' for '{field_name}' requires "
+                "llm_allow_local_http=True (OCTA_LLM_ALLOW_LOCAL_HTTP=true)."
+            )
+    return cleaned
+
+
 @dataclass(frozen=True)
 class AppConfig:
     """Central application configuration for OCTA."""
@@ -75,6 +138,12 @@ class AppConfig:
     godot_project_dir: Path = field(default_factory=lambda: Path("godot"))
     godot_auto_start: bool = False
     start_minimized: bool = False
+    llm_endpoint: str = DEFAULT_LLM_ENDPOINT
+    llm_model: str = DEFAULT_LLM_MODEL
+    llm_api_key: str | None = field(default=None, repr=False)
+    llm_timeout_seconds: float = DEFAULT_LLM_TIMEOUT_SECONDS
+    llm_allow_local_http: bool = False
+    capture_save_screenshots: bool = False
 
     def __post_init__(self) -> None:
         """Validate configuration values and normalize types."""
@@ -104,6 +173,42 @@ class AppConfig:
         )
         object.__setattr__(
             self, "start_minimized", _parse_bool(self.start_minimized, "start_minimized")
+        )
+        object.__setattr__(
+            self,
+            "llm_allow_local_http",
+            _parse_bool(self.llm_allow_local_http, "llm_allow_local_http"),
+        )
+        object.__setattr__(
+            self,
+            "capture_save_screenshots",
+            _parse_bool(self.capture_save_screenshots, "capture_save_screenshots"),
+        )
+
+        # Validate LLM settings
+        object.__setattr__(
+            self,
+            "llm_endpoint",
+            _validate_endpoint_url(
+                self.llm_endpoint,
+                "llm_endpoint",
+                allow_local_http=self.llm_allow_local_http,
+            ),
+        )
+        if not isinstance(self.llm_model, str) or not self.llm_model.strip():
+            raise ConfigError("Field 'llm_model' must be a non-empty string.")
+        object.__setattr__(self, "llm_model", self.llm_model.strip())
+
+        if self.llm_api_key is not None:
+            if not isinstance(self.llm_api_key, str):
+                raise ConfigError("Field 'llm_api_key' must be a string or None.")
+            cleaned_key = self.llm_api_key.strip()
+            object.__setattr__(self, "llm_api_key", cleaned_key if cleaned_key else None)
+
+        object.__setattr__(
+            self,
+            "llm_timeout_seconds",
+            _parse_float(self.llm_timeout_seconds, "llm_timeout_seconds", strictly_positive=True),
         )
 
         # Normalize directories to Path
@@ -167,6 +272,12 @@ class AppConfig:
         else:
             log_dir = Path(injected_log_dir)
 
+        # Resolve LLM API key (never logged or included in repr)
+        if "llm_api_key" in overrides:
+            llm_api_key = overrides["llm_api_key"]
+        else:
+            llm_api_key = get_val("OCTA_LLM_API_KEY") or get_val("OPENAI_API_KEY")
+
         # Construct configuration kwargs
         kwargs: dict[str, Any] = {
             "app_name": overrides.get("app_name") or get_val("OCTA_APP_NAME", "OCTA"),
@@ -216,6 +327,46 @@ class AppConfig:
                 overrides["start_minimized"]
                 if "start_minimized" in overrides
                 else _parse_bool(get_val("OCTA_START_MINIMIZED", False), "start_minimized")
+            ),
+            "llm_endpoint": (
+                overrides["llm_endpoint"]
+                if "llm_endpoint" in overrides
+                else (
+                    get_val("OCTA_LLM_ENDPOINT")
+                    or get_val("OPENAI_API_BASE")
+                    or DEFAULT_LLM_ENDPOINT
+                )
+            ),
+            "llm_model": (
+                overrides["llm_model"]
+                if "llm_model" in overrides
+                else (get_val("OCTA_LLM_MODEL") or get_val("LLM_MODEL") or DEFAULT_LLM_MODEL)
+            ),
+            "llm_api_key": llm_api_key,
+            "llm_timeout_seconds": (
+                overrides["llm_timeout_seconds"]
+                if "llm_timeout_seconds" in overrides
+                else _parse_float(
+                    get_val("OCTA_LLM_TIMEOUT", DEFAULT_LLM_TIMEOUT_SECONDS),
+                    "llm_timeout_seconds",
+                    strictly_positive=True,
+                )
+            ),
+            "llm_allow_local_http": (
+                overrides["llm_allow_local_http"]
+                if "llm_allow_local_http" in overrides
+                else _parse_bool(
+                    get_val("OCTA_LLM_ALLOW_LOCAL_HTTP", False),
+                    "llm_allow_local_http",
+                )
+            ),
+            "capture_save_screenshots": (
+                overrides["capture_save_screenshots"]
+                if "capture_save_screenshots" in overrides
+                else _parse_bool(
+                    get_val("OCTA_CAPTURE_SAVE_SCREENSHOTS", False),
+                    "capture_save_screenshots",
+                )
             ),
         }
 

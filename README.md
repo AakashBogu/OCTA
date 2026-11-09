@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 2 — Python Foundation & Process Management (in progress)
+**Status:** 🟢 Phase 4.0 — Screen Capture & AI Integration (complete)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, and progress verification.
 
-> Note: OCTA is in active early development. The Phase 1 Godot character and Phase 2 Python foundation are implemented. Phase 2.4.1 defines protocol v1 and Phase 2.4.2 provides the Python Qt WebSocket server. The Godot WebSocket client, desktop UI, AI integration, voice, screen capture, and installer remain planned.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), and Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay) are implemented. Voice interaction (Phase 5.0), full tutorial engine orchestration (Phase 6.0), and installer packaging remain planned.
 
 ---
 
@@ -34,7 +34,7 @@ OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop
 
 ## What Works Now
 
-OCTA currently includes four verified foundational components:
+OCTA currently includes seven verified subsystems:
 
 ### 1. Phase 1 Godot 3D Character Prototype
 - A simple 3D robot character built programmatically from Godot primitive meshes (spheres, capsules, cylinders).
@@ -74,9 +74,21 @@ OCTA currently includes four verified foundational components:
 - Safe local handoff of server port and bearer token via child process environment (`QProcessEnvironment`) and secure one-time temporary handoff file, without any command-line argument exposure or secret logging.
 - Correlated HELLO/WELCOME authentication handshake, bidirectional PING/PONG heartbeats, SET_STATE/SET_STATE_ACK state synchronization, and graceful SHUTDOWN/SHUTDOWN_ACK process termination.
 - Strict 65,536-byte message size enforcement, SemVer version validation, and rejection of malformed or incompatible protocol messages.
-- Full automated test suite contains 156 Python tests (including 4 real-binary end-to-end integration tests and 19 handoff tests) and 13 headless Godot protocol tests.
 
-> **Component Coupling Note:** Python manages the Godot process, hosts the authenticated localhost WebSocket server, and orchestrates companion robot states across an active bidirectional WebSocket bridge. Desktop UI / system tray integration is planned for Phase 2.5.
+### 6. Phase 2.5 PySide6 Desktop Interface
+- System tray integration (`OctaSystemTray`) with procedural robot companion icon, dynamic tooltip, and context menu controls.
+- Companion diagnostic and monitor window (`DiagnosticWindow`) displaying real-time process, server, loopback URL, client authentication, and robot states (`IDLE`, `LISTENING`, `THINKING`, `SUCCESS`).
+- Lifecycle orchestration (`DesktopController`, `OctaApplication`) starting the WebSocket server before Godot, coordinating bounded graceful shutdown (`SHUTDOWN`/`SHUTDOWN_ACK`), and waiting for process exit and session closure before server teardown or restart.
+
+### 7. Phase 4.0 Screen Capture & AI Integration (`src/octa/intelligence`)
+- **User-Initiated Windows Screen & Region Capture (`capture.py`):** Captures full-screen or rectangular regions in memory using PySide6 (`QScreen.grabWindow` and `QBuffer`). Requires explicit user initiation (`user_initiated=True`), does not save screenshots to disk by default (`save_screenshots=False`), and excludes raw PNG bytes and base64 strings from `repr`, `str`, and logs.
+- **Task Definition & Validation (`tasks.py`):** Strictly validated schemas for tasks (`TaskDefinition`), steps (`TaskStep`), observable completion criteria (`ExpectedOutcome`), visual overlay cues (`OverlayHint`), generated guidance (`GuidanceInstruction`), and verification results (`ProgressResult` with `ProgressStatus`: `complete`, `incomplete`, `uncertain`).
+- **Remote Screen-Sharing Consent (`consent.py`):** Requires explicit user approval (`ConsentRequest`, `ConsentDecision`, `ScreenShareConsentDialog`, `ConsentManager`) bound internally to the exact outbound request (`request_sha256` over image SHA-256 digest, exact raw endpoint URL SHA-256 digest `endpoint_sha256`, model, system and user prompts, task/step context, and purpose) before sending any captured screen image to a remote AI endpoint. Displays the sanitized endpoint (`scheme://host[:port]/path`), indicates whether URL credentials, query parameters, or a fragment are present with their values redacted (`[REDACTED]`), shows the complete system and user prompts, region coordinates, image dimensions/byte size, and thumbnail preview, never exposes raw URL secrets or endpoint/request/component hash fingerprints in the dialog, `repr`, `str`, logs, or errors, defaults to cancellation, and enforces single-use approval validation that rejects reused or mismatched approvals before any network request.
+- **Isolated OpenAI-Compatible LLM Adapter (`llm.py`):** Configurable client (`LLMConfig`, `OpenAICompatibleAdapter`) using Python standard library `urllib.request`. Reads endpoint, model, and API key from `AppConfig`/environment (`OCTA_LLM_*`), requires HTTPS for all remote endpoints (permitting plain HTTP only for loopback hosts under explicit `OCTA_LLM_ALLOW_LOCAL_HTTP=true` / `allow_local_http=True`), never sends a bearer API key to a non-HTTPS remote endpoint, enforces an explicit no-redirect policy (`NoRedirectHandler`, `build_no_redirect_opener`) so images and bearer keys are never forwarded to a redirected destination without fresh consent, redacts credentials from logs/errors, blocks live network calls during automated `pytest` runs, and enforces exact-request user consent before multimodal requests.
+- **Conservative Progress Verification (`verifier.py`):** Evaluates screenshots against step expectations (`ProgressVerifier`, `parse_verification_output`) and enforces a strict anti-hallucination policy: downgrades `"complete"` claims to `"uncertain"` whenever confidence is below threshold (`0.75`), required elements are missing/unconfirmed, or model reasoning expresses ambiguity.
+- **Passive Qt Visual Overlay (`overlay.py`):** Click-through, non-focusable transparent widget (`GuidanceOverlayWidget`, `HighlightSpec`, `ArrowSpec`, `OverlayBounds`) that validates coordinates against screen bounds and renders highlights and directional arrows with `QPainter`. Strictly passive (`WindowTransparentForInput`, `WindowDoesNotAcceptFocus`, `WA_TransparentForMouseEvents`) — never clicks, types, or controls other applications.
+
+> **Component Coupling Note:** Python manages the Godot process, hosts the authenticated localhost WebSocket server, provides the PySide6 system tray and diagnostic UI, and supplies the Phase 4.0 screen capture, consent, LLM verification, and visual overlay modules. End-to-end interactive tutorial loop orchestration is planned for Phase 6.0.
 
 ---
 
@@ -104,8 +116,9 @@ OCTA is designed around two cooperating processes connected by a local WebSocket
 | Desktop UI | PySide6 | System tray, settings dialogs, companion monitor window |
 | 3D Character | Godot 4.7.x | Animated companion rendering and interaction |
 | IPC | WebSocket (localhost) | Real-time bidirectional messaging between Python and Godot |
-| AI | LLM APIs (TBD) | Instruction generation, progress analysis |
-| Screen capture | Platform APIs (TBD) | Capturing and analyzing on-screen content |
+| AI | OpenAI-compatible HTTP API (`urllib.request`) | Instruction generation, multimodal progress analysis |
+| Screen capture | PySide6 (`QScreen.grabWindow`, `QBuffer`) | User-initiated in-memory screen and region capture |
+| Visual overlay | PySide6 (`QPainter`, click-through `QWidget`) | Passive on-screen highlights and directional arrows |
 | Voice | STT / TTS engines (TBD) | Speech recognition and synthesis |
 
 > All technology choices above are subject to evolution as development progresses.
@@ -128,7 +141,7 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 2.4.2 | Python Qt WebSocket server | ✅ Complete |
 | 3.0 | Godot WebSocket client and end-to-end bridge | ✅ Complete |
 | 2.5 | PySide6 desktop interface | ✅ Complete |
-| 4.0 | Screen capture & AI integration | ⬜ Planned |
+| 4.0 | Screen capture & AI integration | ✅ Complete |
 | 5.0 | Voice interaction | ⬜ Planned |
 | 6.0 | End-to-end tutorial engine | ⬜ Planned |
 
@@ -136,13 +149,14 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 
 ## Development Status
 
-- **Current phase:** Phase 2.5 Complete — PySide6 desktop interface, system tray icon, companion diagnostic window, controller orchestration, and bounded graceful shutdown verified. Next planned phase is Phase 4.0 (Screen capture & AI integration).
+- **Current phase:** Phase 4.0 Complete — Windows screen & region capture, task definition schemas, user consent dialog/workflow, isolated OpenAI-compatible LLM adapter, conservative progress verification, and passive Qt visual overlay implemented and verified. Next planned phase is Phase 5.0 (Voice interaction) or Phase 6.0 (End-to-end tutorial engine).
 - **What exists:**
   - Runnable Godot 4.7 project with a 3D robot character, idle animations, four-state state machine, and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
   - PySide6 desktop interface (`src/octa/desktop`) featuring system tray controls (`OctaSystemTray`), companion diagnostic window (`DiagnosticWindow`), high-level coordinator (`OctaApplication`), and lifecycle controller (`DesktopController`).
-  - Full automated test suite: 180 Python tests passing (including 24 desktop UI/controller unit tests, 4 real-binary end-to-end bridge tests, 5 Godot process lifecycle tests, 19 handoff tests, 22 server tests, and 26 protocol tests) + 13 headless Godot protocol tests.
-- **What does not exist yet:** Screen capture, visual desktop guidance overlays, AI orchestration, voice interaction, or standalone installer.
+  - Phase 4.0 Intelligence Layer (`src/octa/intelligence`) with user-initiated in-memory screen/region capture (`ScreenCapturer`), task/step/outcome/result validation (`TaskDefinition`, `ProgressResult`), screen-sharing consent disclosure and cancellation (`ScreenShareConsentDialog`, `ConsentManager`), isolated OpenAI-compatible LLM adapter (`OpenAICompatibleAdapter`), conservative progress verifier (`ProgressVerifier`), and click-through Qt visual overlay (`GuidanceOverlayWidget`).
+  - Full automated test suite: 236 Python tests passing (including 56 Phase 4.0 intelligence/capture/consent/LLM/verifier/overlay/config unit tests, 24 desktop UI/controller unit tests, 4 real-binary end-to-end bridge tests, 5 Godot process lifecycle tests, 19 handoff tests, 22 server tests, and 26 protocol tests) + 13 headless Godot protocol tests.
+- **What does not exist yet:** Voice interaction (STT/TTS), full multi-step interactive tutorial loop orchestration, or standalone installer.
 
 ---
 
@@ -240,13 +254,22 @@ OCTA/
 │       │   ├── controller.py     # DesktopController managing server, Godot, and shutdown
 │       │   ├── tray.py           # OctaSystemTray icon and context menu
 │       │   └── window.py         # DiagnosticWindow companion monitor and log view
+│       ├── intelligence/         # Phase 4.0 screen capture, consent, LLM, verifier & overlay
+│       │   ├── __init__.py       # Intelligence Layer public exports
+│       │   ├── capture.py        # User-initiated Windows screen & region capture in memory
+│       │   ├── consent.py        # ConsentRequest, ConsentDecision, dialog & ConsentManager
+│       │   ├── exceptions.py     # Capture, task, consent, LLM, and overlay exceptions
+│       │   ├── llm.py            # Isolated OpenAI-compatible LLM adapter & secret redaction
+│       │   ├── overlay.py        # Passive click-through Qt overlay for highlights & arrows
+│       │   ├── tasks.py          # TaskDefinition, TaskStep, ExpectedOutcome, ProgressResult
+│       │   └── verifier.py       # Conservative ProgressVerifier & instruction generator
 │       └── process/              # Godot process lifecycle management
 │           ├── __init__.py       # Process module exports
 │           ├── exceptions.py     # Process management exception hierarchy
 │           ├── manager.py        # GodotProcessManager (PySide6 QProcess lifecycle)
 │           ├── state.py          # ProcessState enum
 │           └── validator.py      # Executable and project path validation
-├── tests/                        # Automated test suite (180 tests passing)
+├── tests/                        # Automated test suite (236 Python tests passing)
 │   ├── conftest.py               # Shared test fixtures & custom markers
 │   ├── integration/              # Real binary integration tests
 │   │   ├── test_end_to_end_bridge.py          # Full Python server and Godot client tests
@@ -256,14 +279,20 @@ OCTA/
 │       ├── test_communication_protocol.py     # Protocol v1 schema and framing tests
 │       ├── test_communication_server.py       # Qt WebSocket server/session tests
 │       ├── test_config.py            # Configuration & precedence tests
+│       ├── test_consent.py           # Screen-sharing consent disclosure & cancellation tests
 │       ├── test_desktop_application.py        # Desktop application setup and fallback tests
 │       ├── test_desktop_controller.py         # Controller sequencing and shutdown handshake tests
 │       ├── test_desktop_tray.py               # System tray icon and menu action tests
 │       ├── test_desktop_window.py             # Diagnostic monitor UI and secret protection tests
 │       ├── test_foundation.py        # Package & version CLI tests
 │       ├── test_godot_manager.py     # GodotProcessManager lifecycle & timer tests
+│       ├── test_llm_adapter.py       # OpenAI-compatible adapter, mock HTTP & redaction tests
 │       ├── test_logging.py           # Log creation, rotation & handler tests
-│       └── test_process_validator.py # Path validation unit tests
+│       ├── test_overlay.py           # Passive Qt overlay & coordinate validation tests
+│       ├── test_process_validator.py # Path validation unit tests
+│       ├── test_progress_verifier.py # Conservative progress verification tests
+│       ├── test_screen_capture.py    # User-initiated screen capture & memory/log privacy tests
+│       └── test_tasks.py             # Task, step, outcome, and result schema validation tests
 ├── .env.example                  # Template for environment variables
 ├── .gitignore                    # Git ignore rules
 ├── CHANGELOG.md                  # Version changelog

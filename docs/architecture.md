@@ -1,8 +1,8 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype) and Phase 2 Milestones 2.1 & 2.2 (Python application foundation, configuration, and logging) are implemented. All other components remain **proposed**.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), and Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay) are implemented. Voice interaction (Phase 5.0) and full tutorial loop orchestration (Phase 6.0) remain **proposed**.
 >
-> **Last updated:** 2026-11-01
+> **Last updated:** 2026-11-09
 
 ---
 
@@ -269,6 +269,12 @@ Configuration is managed via the strongly-typed `AppConfig` frozen dataclass:
   - `godot_project_dir: Path` (default: `Path("godot")`)
   - `godot_auto_start: bool` (default: `False`)
   - `start_minimized: bool` (default: `False`)
+  - `llm_endpoint: str` (default: `"https://api.openai.com/v1/chat/completions"`, requires `https://` for remote hosts)
+  - `llm_model: str` (default: `"gpt-4o-mini"`)
+  - `llm_api_key: str | None` (default: `None`, `repr=False` to prevent secret exposure)
+  - `llm_timeout_seconds: float` (default: `30.0`, validated `> 0`)
+  - `llm_allow_local_http: bool` (default: `False`; when `True`, allows `http://` only for loopback hosts `localhost`, `127.0.0.0/8`, `::1`)
+  - `capture_save_screenshots: bool` (default: `False`)
 
 #### Configuration Precedence
 
@@ -307,8 +313,8 @@ When loaded via `AppConfig.load(...)`, values are resolved with the following pr
 | Godot Process Manager | ✅ Implemented (Phase 2.3) | `octa.process.manager.GodotProcessManager`, `QProcess` lifecycle, path validation |
 | Python Qt WebSocket Server | ✅ Implemented (Phase 2.4.2) | Authenticated single-client protocol v1 server on IPv4 loopback |
 | Godot WebSocket Client | ✅ Implemented (Phase 3.0) | GDScript `OctaWsClient` and `OctaProtocol` using `WebSocketPeer`, safe local handoff |
-| PySide6 Desktop UI / Tray | ⬜ Planned (Phase 2.5) | System tray icon, diagnostic control window |
-| AI Pipeline & Screen Capture | ⬜ Planned (Phase 4.0) | Vision analysis, guidance generation |
+| PySide6 Desktop UI / Tray | ✅ Implemented (Phase 2.5) | `OctaSystemTray`, `DiagnosticWindow`, `DesktopController`, `OctaApplication` |
+| Screen Capture & AI Integration | ✅ Implemented (Phase 4.0) | `octa.intelligence` (`ScreenCapturer`, `TaskDefinition`, `ConsentManager`, `OpenAICompatibleAdapter`, `ProgressVerifier`, `GuidanceOverlayWidget`) |
 | Voice Interaction (STT/TTS) | ⬜ Planned (Phase 5.0) | Speech synthesis and recognition |
 
 ---
@@ -568,3 +574,58 @@ The desktop interface subsystem lives in `src/octa/desktop/` and orchestrates th
      - When unavailable: logs a warning, falls back cleanly to windowed mode (`app.setQuitOnLastWindowClosed(True)`), and ensures the monitor window is shown.
    - Automatically starts services if `config.godot_auto_start` is enabled.
    - Hooks `QApplication.aboutToQuit` to run `controller.stop(timeout_ms=...)`, ensuring application exit waits for Godot to finish (including the force-kill fallback while Qt's event loop is active) before shutting down the WebSocket server.
+
+---
+
+## Phase 4.0 — Implemented Screen Capture, AI Integration & Visual Overlay
+
+The Phase 4.0 Intelligence Layer lives under `src/octa/intelligence/` and provides modular, testable components for Windows screen capture, task validation, user consent, LLM communication, progress verification, and passive visual overlays.
+
+```
+src/octa/intelligence/
+├── __init__.py       # Public exports for the Intelligence Layer
+├── capture.py        # User-initiated in-memory Windows screen & region capture
+├── consent.py        # Remote transmission disclosure, dialog & SHA-256 consent binding
+├── exceptions.py     # Dedicated exception hierarchy
+├── llm.py            # Isolated OpenAI-compatible Chat Completions adapter
+├── overlay.py        # Passive, click-through Qt visual overlay for highlights & arrows
+├── tasks.py          # TaskDefinition, TaskStep, ExpectedOutcome, ProgressResult schemas
+└── verifier.py       # Conservative ProgressVerifier & step instruction generator
+```
+
+### Architectural Decisions & Rationale
+
+1. **Zero New Runtime Dependencies (`PySide6` + Python Standard Library):**
+   - **Screen Capture:** Uses `QGuiApplication.primaryScreen().grabWindow(...)` and encodes `QPixmap` / `QImage` into an in-memory `QBuffer` (`PNG` format). This avoids adding native screenshot libraries (`mss`, `pillow`, `pyautogui`) while keeping all pixel data strictly in memory.
+   - **LLM Transport:** Uses `urllib.request` from the Python standard library against the standard OpenAI-compatible `/v1/chat/completions` JSON schema. Users can point `OCTA_LLM_ENDPOINT` to OpenAI, Azure/compatible gateways, or local OpenAI-compatible servers (vLLM, Ollama, LM Studio) without vendor SDK lock-in.
+
+2. **Explicit User Action & Screenshot Privacy (`capture.py`):**
+   - `ScreenCapturer.capture_full_screen`, `capture_region`, and `select_and_capture_region` require `user_initiated=True` and raise `UserActionRequiredError` otherwise, preventing background or unprompted screen recording.
+   - Screenshots are never written to disk by default (`save_screenshots=False`).
+   - `CapturedImage` marks `png_bytes` with `repr=False` and overrides `__repr__`/`__str__` to include only safe metadata (`source`, `width`, `height`, `byte_size`, `sha256_prefix`), ensuring screenshots or base64 strings never leak into log files.
+
+3. **Explicit User Consent Bound to Complete Outbound Request & Exact Endpoint (`consent.py`):**
+   - Before any `CapturedImage` is transmitted to an LLM endpoint, `OpenAICompatibleAdapter.complete_with_image` constructs a canonical `ConsentRequest` containing the image SHA-256 digest (`image_sha256`), image dimensions and byte size, capture source/region, internal exact raw endpoint URL SHA-256 digest (`endpoint_sha256`, `repr=False`), sanitized `endpoint_url`, `endpoint_disclosure`, `model`, `system_prompt`, `user_prompt`, `task_title`/`step_title` context, and `purpose`, computing an internal deterministic SHA-256 fingerprint (`request_sha256`) over all fields.
+   - `format_endpoint_for_disclosure` and `ConsentRequest.to_display_summary()` show the sanitized endpoint (`scheme://host[:port]/path`) and indicate whether URL credentials, query parameters, or a fragment are present with their values redacted (`[REDACTED]`), while never displaying endpoint, request, or URL-component hash fingerprints in `ScreenShareConsentDialog`, `repr`, `str`, logs, or errors.
+   - `ConsentDecision.validate_for_request(..., consume=True)` verifies that the user approved the exact outbound request (including `endpoint_sha256`) and marks the decision as consumed (`single-use`). Any attempt to reuse an approval or change even a single query parameter, URL credential, fragment, prompt, endpoint, model, task/step context, purpose, or image raises `ConsentDeclinedError` before any network request is made.
+   - The `Cancel` button is the default dialog action so accidental Enter/Escape keystrokes cancel transmission (`ConsentDeclinedError`) before any network payload is sent.
+
+4. **HTTPS Transport Enforcement, Explicit No-Redirect Policy, Credential Isolation & Test Network Guard (`llm.py`):**
+   - Remote LLM endpoints must use `https://`. Plain `http://` is rejected unconditionally for all non-loopback hosts, and is permitted for loopback hosts (`localhost`, `127.0.0.1`, `::1`) only when `allow_local_http=True` (`OCTA_LLM_ALLOW_LOCAL_HTTP=true`) is explicitly enabled.
+   - `OpenAICompatibleAdapter._send_chat_completion` re-validates the target endpoint before reading `require_api_key()` or constructing the `Authorization: Bearer ...` header, guaranteeing a real bearer API key is never sent to a non-HTTPS remote endpoint.
+   - `NoRedirectHandler` and `build_no_redirect_opener` disable automatic HTTP redirects (`301`, `302`, `303`, `307`, `308`) and raise `LLMTransportError`, ensuring that neither the bearer API key nor captured screen content is ever forwarded to a redirected destination without fresh user consent.
+   - `LLMConfig` and `AppConfig` mark `api_key` / `llm_api_key` as `repr=False` and redact `Bearer <token>`, URL userinfo credentials, and configured key values from all transport errors and log entries (`redact_sensitive_text`).
+   - When running under `pytest` (`"pytest" in sys.modules`), the default `urllib` transport immediately raises `LLMTransportError`, guaranteeing that unit and integration tests never make accidental live API calls.
+
+5. **Conservative Progress Verification (`verifier.py`):**
+   - `ProgressVerifier` and `parse_verification_output` return structured `ProgressResult` instances with `ProgressStatus` (`complete`, `incomplete`, `uncertain`).
+   - To prevent false-positive completion claims when visual evidence is ambiguous, any model output claiming `status="complete"` is automatically downgraded to `ProgressStatus.UNCERTAIN` if:
+     - `confidence < min_complete_confidence` (`0.75` by default),
+     - `missing_elements` is non-empty,
+     - any item in `step.expected_outcome.required_elements` is not confirmed in `observed_elements`, or
+     - `reasoning` contains ambiguity indicators (`"unclear"`, `"not sure"`, `"cannot confirm"`, `"blurry"`, etc.).
+
+6. **Passive, Non-Interactive Qt Visual Overlay (`overlay.py`):**
+   - `GuidanceOverlayWidget` validates `HighlightSpec` and `ArrowSpec` coordinates against `OverlayBounds` (rejecting negative coordinates, zero/negative dimensions, zero-length arrows, and out-of-screen bounds with `InvalidOverlayCoordinatesError`).
+   - Configured with `Qt.WindowType.WindowTransparentForInput`, `Qt.WindowType.WindowDoesNotAcceptFocus`, `Qt.WindowType.FramelessWindowHint`, `Qt.WindowType.WindowStaysOnTopHint`, `Qt.WidgetAttribute.WA_TransparentForMouseEvents`, and `Qt.FocusPolicy.NoFocus`.
+   - Strictly passive: contains no input synthesis or automation routines and never clicks, types, or controls other applications.

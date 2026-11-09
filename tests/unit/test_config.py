@@ -146,3 +146,74 @@ def test_windows_path_resolution(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     monkeypatch.delenv("LOCALAPPDATA", raising=False)
     config_fallback = AppConfig()
     assert "OCTA" in str(config_fallback.app_dir)
+
+
+def test_phase4_llm_and_capture_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Verify LLM endpoint, model, timeout, screenshot saving defaults, and secret masking."""
+    import secrets
+
+    runtime_token = secrets.token_urlsafe(16)
+    monkeypatch.setenv("OCTA_LLM_ENDPOINT", "https://example.org/v1/chat/completions")
+    monkeypatch.setenv("OCTA_LLM_MODEL", "custom-vision-model")
+    monkeypatch.setenv("OCTA_LLM_API_KEY", runtime_token)
+    monkeypatch.setenv("OCTA_LLM_TIMEOUT", "15.5")
+    monkeypatch.setenv("OCTA_CAPTURE_SAVE_SCREENSHOTS", "false")
+
+    config = AppConfig.load(base_dir=tmp_path)
+    assert config.llm_endpoint == "https://example.org/v1/chat/completions"
+    assert config.llm_model == "custom-vision-model"
+    assert config.llm_api_key == runtime_token
+    assert config.llm_timeout_seconds == 15.5
+    assert config.llm_allow_local_http is False
+    assert config.capture_save_screenshots is False
+
+    # Ensure API key never appears in repr or str of AppConfig
+    assert runtime_token not in repr(config)
+    assert runtime_token not in str(config)
+
+    # Invalid endpoint or timeout raises ConfigError
+    with pytest.raises(ConfigError, match="Invalid URL"):
+        AppConfig(llm_endpoint="ftp://invalid-scheme.local")
+
+    with pytest.raises(ConfigError, match="llm_timeout_seconds"):
+        AppConfig(llm_timeout_seconds=0)
+
+
+def test_phase4_https_and_loopback_http_config_policy(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Verify remote HTTP is always rejected and loopback HTTP requires llm_allow_local_http."""
+    # Remote HTTP is rejected by default AND even when llm_allow_local_http=True
+    with pytest.raises(ConfigError, match="Remote LLM endpoints must use HTTPS"):
+        AppConfig(llm_endpoint="http://api.example.com/v1/chat/completions")
+
+    with pytest.raises(ConfigError, match="Remote LLM endpoints must use HTTPS"):
+        AppConfig(
+            llm_endpoint="http://api.example.com/v1/chat/completions",
+            llm_allow_local_http=True,
+        )
+
+    # Loopback HTTP is rejected by default
+    with pytest.raises(ConfigError, match="OCTA_LLM_ALLOW_LOCAL_HTTP"):
+        AppConfig(llm_endpoint="http://127.0.0.1:11434/v1/chat/completions")
+
+    with pytest.raises(ConfigError, match="OCTA_LLM_ALLOW_LOCAL_HTTP"):
+        AppConfig(llm_endpoint="http://localhost:8000/v1/chat/completions")
+
+    # Loopback HTTP is permitted when explicitly enabled
+    local_cfg = AppConfig(
+        llm_endpoint="http://127.0.0.1:11434/v1/chat/completions",
+        llm_allow_local_http=True,
+    )
+    assert local_cfg.llm_endpoint == "http://127.0.0.1:11434/v1/chat/completions"
+    assert local_cfg.llm_allow_local_http is True
+
+    monkeypatch.setenv("OCTA_LLM_ENDPOINT", "http://[::1]:8080/v1/chat/completions")
+    monkeypatch.setenv("OCTA_LLM_ALLOW_LOCAL_HTTP", "true")
+    env_cfg = AppConfig.load(base_dir=tmp_path)
+    assert env_cfg.llm_endpoint == "http://[::1]:8080/v1/chat/completions"
+    assert env_cfg.llm_allow_local_http is True
