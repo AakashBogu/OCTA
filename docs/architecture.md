@@ -490,4 +490,81 @@ To prevent secret exposure, OCTA implements two secure in-memory and filesystem 
 3. **End-to-End Integration Tests (`tests/integration/test_end_to_end_bridge.py`):**
    - 4 real-binary tests against installed Godot 4.7.2 in headless mode verifying the full handshake, `SET_STATE` roundtrip state transitions, PING/PONG heartbeats, graceful shutdown coordination, file-based handoff, and unauthorized token rejection.
 4. **Total Test Suite:**
-   - 156 Python automated tests + 13 Godot protocol tests passing with zero failures.
+   - 180 Python automated tests + 13 Godot protocol tests passing with zero failures.
+
+## Phase 2.5 — Implemented PySide6 Desktop Interface
+
+The desktop interface subsystem lives in `src/octa/desktop/` and orchestrates the application presentation, user controls, background services, and system tray integration on the Qt event loop.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                             OctaApplication                            │
+│  • QApplication lifecycle                                              │
+│  • Start minimized / Auto-start configuration                          │
+│  • System tray availability detection & fallback                       │
+└───────────────────┬────────────────────────────────┬───────────────────┘
+                    │                                │
+                    ▼                                ▼
+       ┌────────────────────────┐       ┌────────────────────────┐
+       │     OctaSystemTray     │       │    DiagnosticWindow    │
+       │  • Procedural icon     │       │  • Live status labels  │
+       │  • Dynamic tooltip     │◄─────►│  • Control buttons     │
+       │  • Context menu actions│       │  • Diagnostics console │
+       └────────────┬───────────┘       └────────────┬───────────┘
+                    │                                │
+                    └───────────────┬────────────────┘
+                                    │
+                                    ▼
+       ┌─────────────────────────────────────────────────────────┐
+       │                    DesktopController                    │
+       │  • Server-before-Godot startup sequencing               │
+       │  • Credential rotation & child environment handoff      │
+       │  • Bounded graceful SHUTDOWN handshake (SHUTDOWN_ACK)   │
+       │  • Process wait & force-kill fallback before server stop│
+       └────────────────────┬───────────────────┬────────────────┘
+                            │                   │
+                            ▼                   ▼
+                 ┌────────────────────┐┌────────────────────┐
+                 │  WebSocketServer   ││ GodotProcessManager│
+                 │  (127.0.0.1:port)  ││ (QProcess runtime) │
+                 └────────────────────┘└────────────────────┘
+```
+
+### Components
+
+1. **`DesktopController` (`src/octa/desktop/controller.py`):**
+   - Coordinates `WebSocketServer` and `GodotProcessManager` lifecycle.
+   - **Startup Sequencing:** Always starts `WebSocketServer` first to obtain the dynamically selected loopback port (`server_port`) and a freshly rotated bearer token (`secrets.token_urlsafe(32)`).
+   - **Safe Credential Passing:** Injects loopback port and bearer token into Godot's child environment using `prepare_process_environment` via `QProcessEnvironment`. No credentials appear in command-line arguments.
+   - **Bounded Graceful Shutdown & Process Wait:**
+     1. If client is authenticated and process is running, emits `SHUTDOWN` request over WebSocket and waits (bounded up to `DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS`) for `shutdownAcknowledged`, disconnect, or process completion while keeping the WebSocket server available.
+     2. Calls `GodotProcessManager.stop()` and spins a bounded `QEventLoop` waiting for the Godot process to finish, allowing `GodotProcessManager`'s force-kill fallback timer (`_shutdown_timer` -> `kill()`) to execute while Qt's event loop is still active and while keeping the WebSocket server available until the client/process has finished or the bounded fallback completes.
+     3. Stops `WebSocketServer` and waits in a bounded loop for any closing WebSocket session to reach `ConnectionState.STOPPED`.
+     4. Always disconnects temporary signal handlers in `finally` blocks so repeated stops never accumulate callbacks.
+   - **Restart Sequencing:** Waits for both the old Godot process and the old WebSocket session to finish closing before relaunching the server and replacement process.
+
+2. **`DiagnosticWindow` (`src/octa/desktop/window.py`):**
+   - Renders companion diagnostic monitor with live indicators:
+     - Process state (`STOPPED`, `STARTING`, `RUNNING`, `STOPPING`, `CRASHED`, `ERROR`) + PID
+     - Server state (`STOPPED`, `LISTENING`, `CONNECTED`, `AUTHENTICATED`, `CLOSING`, `ERROR`)
+     - Loopback URL + Port
+     - Client authentication state (`Authenticated` / `Disconnected`)
+     - Robot companion state (`IDLE`, `LISTENING`, `THINKING`, `SUCCESS`)
+   - Interactive control buttons (`Start Companion`, `Stop Companion`, `Restart`, `Clear Log`).
+   - Read-only monospace activity log with timestamped entries.
+   - **Security Guarantee:** Never displays, formats, or logs the authentication token in any window element, label, tooltip, or log view.
+   - **Tray-Aware Close Handling:** When system tray is available, closing the window ignores the close event and hides the window (`hide()`), keeping the application running in the background.
+
+3. **`OctaSystemTray` (`src/octa/desktop/tray.py`):**
+   - Generates a 32x32 robot companion icon programmatically with `QPainter` (`create_tray_icon()`).
+   - Dynamic tooltip showing connection URL and robot state without exposing tokens.
+   - Left-click or double-click toggles the diagnostic monitor window.
+   - Context menu provides `Show Monitor`, `Start Companion`, `Stop Companion`, `Restart Companion`, and `Exit OCTA`.
+
+4. **`OctaApplication` (`src/octa/desktop/application.py`):**
+   - Sets up `QApplication`, `DesktopController`, `DiagnosticWindow`, and `OctaSystemTray`.
+   - Checks `QSystemTrayIcon.isSystemTrayAvailable()`:
+     - When available: initializes system tray, sets `app.setQuitOnLastWindowClosed(False)`, honors `start_minimized`.
+     - When unavailable: logs a warning, falls back cleanly to windowed mode (`app.setQuitOnLastWindowClosed(True)`), and ensures the monitor window is shown.
+   - Automatically starts services if `config.godot_auto_start` is enabled.
+   - Hooks `QApplication.aboutToQuit` to run `controller.stop(timeout_ms=...)`, ensuring application exit waits for Godot to finish (including the force-kill fallback while Qt's event loop is active) before shutting down the WebSocket server.

@@ -127,7 +127,7 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 2.4.1 | Communication protocol v1 | ✅ Complete |
 | 2.4.2 | Python Qt WebSocket server | ✅ Complete |
 | 3.0 | Godot WebSocket client and end-to-end bridge | ✅ Complete |
-| 2.5 | PySide6 desktop interface | ⬜ Planned |
+| 2.5 | PySide6 desktop interface | ✅ Complete |
 | 4.0 | Screen capture & AI integration | ⬜ Planned |
 | 5.0 | Voice interaction | ⬜ Planned |
 | 6.0 | End-to-end tutorial engine | ⬜ Planned |
@@ -136,13 +136,13 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 
 ## Development Status
 
-- **Current phase:** Phase 3.0 Complete — Godot WebSocket client, safe credential handoff, and end-to-end Python/Godot integration verified. Next planned phase is Phase 2.5 (PySide6 desktop interface/tray).
+- **Current phase:** Phase 2.5 Complete — PySide6 desktop interface, system tray icon, companion diagnostic window, controller orchestration, and bounded graceful shutdown verified. Next planned phase is Phase 4.0 (Screen capture & AI integration).
 - **What exists:**
   - Runnable Godot 4.7 project with a 3D robot character, idle animations, four-state state machine, and embedded `OctaWsClient`.
-  - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, and authenticated `WebSocketServer`.
-  - Safe credential handoff (`octa.communication.handoff`) preventing CLI token leakage.
-  - Full automated test suite: 156 Python tests passing in ~8s (including 4 real-binary end-to-end tests, 5 Godot process lifecycle tests, and 19 handoff tests) + 13 headless Godot protocol tests.
-- **What does not exist yet:** PySide6 desktop UI/system tray, AI integration, voice interaction, screen capture, or installers.
+  - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
+  - PySide6 desktop interface (`src/octa/desktop`) featuring system tray controls (`OctaSystemTray`), companion diagnostic window (`DiagnosticWindow`), high-level coordinator (`OctaApplication`), and lifecycle controller (`DesktopController`).
+  - Full automated test suite: 180 Python tests passing (including 24 desktop UI/controller unit tests, 4 real-binary end-to-end bridge tests, 5 Godot process lifecycle tests, 19 handoff tests, 22 server tests, and 26 protocol tests) + 13 headless Godot protocol tests.
+- **What does not exist yet:** Screen capture, visual desktop guidance overlays, AI orchestration, voice interaction, or standalone installer.
 
 ---
 
@@ -234,25 +234,35 @@ OCTA/
 │       │   ├── protocol.py       # Strict SemVer, JSON encoding, and size checks
 │       │   ├── server.py         # Loopback QWebSocketServer and client sessions
 │       │   └── state.py          # Communication lifecycle states
+│       ├── desktop/              # PySide6 desktop interface and system tray
+│       │   ├── __init__.py       # Desktop module exports
+│       │   ├── application.py    # OctaApplication coordinator and window/tray lifecycle
+│       │   ├── controller.py     # DesktopController managing server, Godot, and shutdown
+│       │   ├── tray.py           # OctaSystemTray icon and context menu
+│       │   └── window.py         # DiagnosticWindow companion monitor and log view
 │       └── process/              # Godot process lifecycle management
 │           ├── __init__.py       # Process module exports
 │           ├── exceptions.py     # Process management exception hierarchy
 │           ├── manager.py        # GodotProcessManager (PySide6 QProcess lifecycle)
 │           ├── state.py          # ProcessState enum
 │           └── validator.py      # Executable and project path validation
-├── tests/                        # Automated test suite (156 tests passing)
+├── tests/                        # Automated test suite (180 tests passing)
 │   ├── conftest.py               # Shared test fixtures & custom markers
 │   ├── integration/              # Real binary integration tests
 │   │   ├── test_end_to_end_bridge.py          # Full Python server and Godot client tests
 │   │   └── test_godot_process_integration.py  # Real Godot headless lifecycle tests
 │   └── unit/                     # Isolated unit tests and Qt loopback tests
-│       ├── test_communication_handoff.py  # Handoff environment & file tests
-│       ├── test_communication_protocol.py # Protocol v1 schema and framing tests
-│       ├── test_communication_server.py   # Qt WebSocket server/session tests
-│       ├── test_config.py        # Configuration & precedence tests
-│       ├── test_foundation.py    # Package & version CLI tests
-│       ├── test_godot_manager.py # GodotProcessManager lifecycle & timer tests
-│       ├── test_logging.py       # Log creation, rotation & handler tests
+│       ├── test_communication_handoff.py      # Handoff environment & file tests
+│       ├── test_communication_protocol.py     # Protocol v1 schema and framing tests
+│       ├── test_communication_server.py       # Qt WebSocket server/session tests
+│       ├── test_config.py            # Configuration & precedence tests
+│       ├── test_desktop_application.py        # Desktop application setup and fallback tests
+│       ├── test_desktop_controller.py         # Controller sequencing and shutdown handshake tests
+│       ├── test_desktop_tray.py               # System tray icon and menu action tests
+│       ├── test_desktop_window.py             # Diagnostic monitor UI and secret protection tests
+│       ├── test_foundation.py        # Package & version CLI tests
+│       ├── test_godot_manager.py     # GodotProcessManager lifecycle & timer tests
+│       ├── test_logging.py           # Log creation, rotation & handler tests
 │       └── test_process_validator.py # Path validation unit tests
 ├── .env.example                  # Template for environment variables
 ├── .gitignore                    # Git ignore rules

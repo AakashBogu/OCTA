@@ -89,13 +89,18 @@
 - [x] Implement correlated heartbeat, state-command, and SHUTDOWN_ACK handling
 - [x] Add server/session tests and update architecture and project documentation
 
-### Milestone 2.5 — PySide6 Desktop Interface *(planned)*
-- [ ] Build system tray integration with PySide6 (QSystemTrayIcon)
-- [ ] Create companion diagnostic and monitor window
-- [ ] Connect UI controls to process manager and communication server
+### Milestone 2.5 — PySide6 Desktop Interface *(complete)*
+- [x] Build system tray integration with PySide6 (`QSystemTrayIcon`, procedural icon, dynamic tooltip, context menu)
+- [x] Create companion diagnostic and monitor window (`DiagnosticWindow` with process, server, URL, client, and robot status `IDLE`, `LISTENING`, `THINKING`, `SUCCESS`)
+- [x] Connect UI controls to process manager and communication server (`DesktopController`)
+- [x] Start server before Godot, rotating credentials and passing via child environment
+- [x] Implement bounded graceful shutdown handshake (`SHUTDOWN`/`SHUTDOWN_ACK`) and wait for process exit / force-kill fallback while keeping WebSocket server available before server cleanup
+- [x] Ensure restart waits for both old process and WebSocket session to finish closing before relaunching
+- [x] Provide graceful fallback to windowed mode when system tray is unavailable
+- [x] Add focused UI and controller unit tests with `pytest-qt` (24 tests)
 
-### Milestone 2.6 — Documentation & Phase 2 Wrap-up *(planned)*
-- [ ] Complete remaining Phase 2 verification and documentation sync
+### Milestone 2.6 — Documentation & Phase 2 Wrap-up *(complete)*
+- [x] Complete Phase 2 verification, test suite expansion (180 tests), and documentation sync
 
 ## Phase 3 — Communication Bridge *(complete)*
 

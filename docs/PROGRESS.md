@@ -337,3 +337,56 @@ Designed and implemented the Godot WebSocket client and end-to-end integration w
 ### Next Step
 
 - Proceed to Phase 2.5: PySide6 Desktop Interface (system tray icon and diagnostic monitor window).
+
+---
+
+## Task: Phase 2.5 — PySide6 Desktop Interface
+
+**Date:** 2026-11-09
+**Phase:** 2.5
+
+### Summary
+
+Designed, implemented, and tested the PySide6 desktop interface for OCTA. Built a system tray icon with context menu controls (`OctaSystemTray`), a companion diagnostic window (`DiagnosticWindow`) displaying live process state, server status, actual loopback URL and port, client authentication state, robot state (`IDLE`, `LISTENING`, `THINKING`, `SUCCESS`), and activity logs. Built an orchestrating controller (`DesktopController`) that connects the UI controls to `GodotProcessManager` and `WebSocketServer`, ensuring the server starts first to establish loopback port and rotated bearer credentials before Godot launch. Implemented bounded graceful shutdown coordinating `SHUTDOWN`/`SHUTDOWN_ACK` handshake, waiting for Godot process completion (allowing `GodotProcessManager`'s force-kill fallback timer to run while Qt's event loop is active and keeping the WebSocket server available until the client/process has finished), waiting for WebSocket session closure on stop and restart before relaunching, and disconnecting temporary signal handlers after waiting. Integrated `OctaApplication` coordinating the Qt application lifecycle, honoring `godot_auto_start` and `start_minimized`, with automatic windowed mode fallback when system tray is unavailable. Updated CLI entry point preserving `--version` and adding `--minimized`, `--no-auto-start`, `--headless-godot`, and `--config`. Wrote 24 unit tests with `pytest-qt` validating all desktop components, delayed process completion, force-kill timeout fallback, application exit, restart ordering, temporary handler disconnection, secret protection, dynamic signal updates, and lifecycle sequencing.
+
+### Files Created
+
+- `src/octa/desktop/__init__.py` — Package exports for desktop interface (`DesktopController`, `DiagnosticWindow`, `OctaSystemTray`, `OctaApplication`, `create_tray_icon`).
+- `src/octa/desktop/controller.py` — `DesktopController` managing server and process lifecycles, startup sequencing, bounded graceful shutdown handshake, process wait/force-kill fallback while keeping the server available, WebSocket session closure wait on stop/restart, and temporary signal handler cleanup.
+- `src/octa/desktop/window.py` — `DiagnosticWindow` companion monitor rendering status labels, control buttons, and monospace activity log.
+- `src/octa/desktop/tray.py` — `OctaSystemTray` providing procedural robot companion icon, dynamic tooltip, and context menu.
+- `src/octa/desktop/application.py` — `OctaApplication` high-level application coordinator managing window, tray, settings, and bounded `aboutToQuit` shutdown.
+- `tests/unit/test_desktop_controller.py` — 8 unit tests verifying initial state, start sequencing, graceful shutdown handshake, delayed process completion before server stop, force-kill timeout fallback while server remains available, restart waiting for old process and WebSocket session closure before relaunching, temporary signal handler disconnection across repeated stops, and signal routing across protocol states (`IDLE`, `LISTENING`, `THINKING`, `SUCCESS`).
+- `tests/unit/test_desktop_window.py` — 6 unit tests verifying UI rendering, dynamic updates across all protocol states, token absence from labels/logs, button invocations, log clearing, and close event handling.
+- `tests/unit/test_desktop_tray.py` — 5 unit tests verifying icon generation, initial action state, action execution, click toggle visibility, and secret absence from tooltips.
+- `tests/unit/test_desktop_application.py` — 5 unit tests verifying auto-start, start-minimized, system tray unavailable fallback, and `aboutToQuit` waiting for delayed process completion and force-kill fallback before stopping the server.
+
+### Files Modified
+
+- `src/octa/__main__.py` — Added desktop CLI argument parsing (`--minimized`, `--no-auto-start`, `--headless-godot`, `--config`), preserving `--version` and instantiating `OctaApplication`.
+- `src/octa/core/logging.py` — Enhanced `shutdown_logging` with safe exception handling for already-closed standard streams during test teardown.
+- `README.md` — Updated roadmap, development status, project structure tree, and test counts.
+- `ROADMAP.md` — Marked Milestone 2.5 and 2.6 completed with detailed checklists.
+- `CHANGELOG.md` — Documented Phase 2.5 additions under `[Unreleased]`.
+- `docs/architecture.md` — Documented desktop UI architecture, system tray integration, window layout, and controller lifecycle.
+- `docs/PROGRESS.md` — Appended this task entry.
+
+### Validation
+
+- **Desktop Unit Tests:** Ran `pytest tests/unit/test_desktop_controller.py tests/unit/test_desktop_window.py tests/unit/test_desktop_tray.py tests/unit/test_desktop_application.py -v`, all 24 tests passed.
+- **Full Python Test Suite:** Ran `pytest -v`, all 180 tests passed (including 4 real-binary e2e bridge tests, 5 Godot process integration tests, 19 handoff tests, 22 server tests, 26 protocol tests, 24 desktop tests).
+- **Ruff Linter:** Ran `ruff check .`, all checks passed with 0 errors across 43 files.
+- **Ruff Formatter:** Ran `ruff format --check .`, all 43 files properly formatted.
+- **Git Diff Check:** Ran `git diff --check`, 0 whitespace errors.
+- **Secret Protection Verification:** Verified that the authentication token is never displayed in GUI labels, tooltips, logs, or command-line arguments.
+- **Git Staging Safety:** Verified that no Phase 2.5 changes are staged or committed; left unstaged for review.
+
+### Blockers
+
+- None.
+
+### Next Step
+
+- User review of Phase 2.5 changes.
+- Stage, commit, and push Phase 2.5 changes upon user instruction.
+- Proceed to Phase 4.0: Screen Capture & AI Integration.

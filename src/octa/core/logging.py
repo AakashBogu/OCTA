@@ -32,8 +32,14 @@ def shutdown_logging(logger_name: str = "octa") -> None:
     target_logger = logging.getLogger(logger_name)
     for handler in list(target_logger.handlers):
         if getattr(handler, OCTA_HANDLER_ATTR, False):
-            handler.flush()
-            handler.close()
+            try:
+                handler.flush()
+            except (ValueError, OSError):
+                pass
+            try:
+                handler.close()
+            except (ValueError, OSError):
+                pass
             target_logger.removeHandler(handler)
 
 
