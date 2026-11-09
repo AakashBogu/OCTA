@@ -129,14 +129,18 @@
 
 ---
 
-## Phase 5 — Voice
+## Phase 5 — Voice *(complete)*
 
-### Phase 5.0 — Voice Interaction *(planned)*
+### Phase 5.0 — Voice Interaction *(complete)*
 
-- [ ] Integrate text-to-speech engine
-- [ ] Integrate speech-to-text engine
-- [ ] Connect voice pipeline to task engine
-- [ ] Handle wake-word or push-to-talk activation
+- [x] Verify `PySide6.QtMultimedia` (`QAudioSource`, `QAudioSink`, `QAudioFormat`, `QMediaDevices`, `QBuffer`) availability without adding external dependencies
+- [x] Integrate injectable text-to-speech (`TextToSpeechProvider`, `AudioPlaybackBackend`, `DisabledTTSProvider`, `MockTTSProvider`, `RemoteHTTPTTSProvider`, `QtAudioPlaybackBackend`, `create_playback_backend`) and speech-to-text (`SpeechToTextProvider`, `DisabledSTTProvider`, `MockSTTProvider`, `RemoteHTTPSTTProvider`) interfaces without assuming a paid cloud speech provider
+- [x] Implement in-memory push-to-talk microphone capture (`PushToTalkRecorder`, `RecordedAudio`, `TranscriptionResult`, `SynthesizedSpeech`) that requires explicit user initiation (`user_initiated=True`), never records continuously or saves audio by default, and keeps credentials, audio bytes, and transcripts out of logs and persistent files
+- [x] Require explicit destination disclosure and single-use user consent (`VoiceConsentRequest`, `VoiceConsentDecision`, `VoiceConsentDialog`, `VoiceConsentManager`) before sending microphone audio or text to any remote speech provider, enforcing HTTPS for remote endpoints and blocking HTTP redirects (`VoiceNoRedirectHandler`)
+- [x] Connect push-to-talk voice pipeline to the task and instruction engine (`VoiceInteractionController`, `route_spoken_request_to_instruction`) and wire `QtAudioPlaybackBackend` in `VoiceInteractionController` / `from_app_config` for real WAV instruction readout
+- [x] Clearly indicate disabled providers in `DiagnosticWindow`, make microphone activity visibly clear, support immediate cancel/stop (`cancel_or_stop`), and explicitly defer wake-word detection
+- [x] Add focused unit tests with mocked and production-configured audio/STT/TTS/playback paths (21 new unit tests; 257 Python tests + 13 Godot protocol tests total)
+- [ ] Optional wake-word activation *(explicitly deferred)*
 
 ---
 

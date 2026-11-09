@@ -14,9 +14,11 @@ from octa.communication.handoff import prepare_process_environment
 from octa.communication.server import WebSocketServer
 from octa.communication.state import ConnectionState
 from octa.core.config import AppConfig
+from octa.intelligence.tasks import GuidanceInstruction
 from octa.process.exceptions import ProcessError
 from octa.process.manager import GodotProcessManager
 from octa.process.state import ProcessState
+from octa.voice.controller import VoiceInteractionController
 
 DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 1500
 DEFAULT_STOP_TIMEOUT_MS = 3000
@@ -35,12 +37,17 @@ class DesktopController(QObject):
     robot_state_changed = Signal(str, str)  # previous_state, new_state
     log_message = Signal(str, str, str)  # timestamp, message, level
     error_occurred = Signal(str)
+    voice_state_changed = Signal(str)  # IDLE, RECORDING, TRANSCRIBING, PROCESSING, SPEAKING, ERROR
+    microphone_active_changed = Signal(bool)  # True when push-to-talk mic is recording
+    speaking_active_changed = Signal(bool)  # True when TTS playback is active
+    instruction_updated = Signal(str, str)  # step_id, instruction_text
 
     def __init__(
         self,
         config: AppConfig | None = None,
         process_manager: GodotProcessManager | None = None,
         server: WebSocketServer | None = None,
+        voice_controller: VoiceInteractionController | None = None,
         *,
         headless: bool = False,
         parent: QObject | None = None,
@@ -69,6 +76,16 @@ class DesktopController(QObject):
         else:
             self._server = WebSocketServer(parent=self)
 
+        if voice_controller is not None:
+            self._voice_controller = voice_controller
+            if voice_controller.parent() is None:
+                voice_controller.setParent(self)
+        else:
+            self._voice_controller = VoiceInteractionController.from_app_config(
+                self._config,
+                parent=self,
+            )
+
         self._stopping = False
         self._restarting = False
         self._connect_signals()
@@ -90,6 +107,16 @@ class DesktopController(QObject):
         self._server.clientDisconnected.connect(self._on_client_disconnected)
         self._server.robotStateChanged.connect(self._on_robot_state_changed)
         self._server.errorOccurred.connect(self._on_server_error)
+
+        # Voice controller signals
+        self._voice_controller.voice_state_changed.connect(self._on_voice_state_changed)
+        self._voice_controller.microphone_active_changed.connect(
+            self.microphone_active_changed.emit
+        )
+        self._voice_controller.speaking_active_changed.connect(self.speaking_active_changed.emit)
+        self._voice_controller.instruction_ready.connect(self.instruction_updated.emit)
+        self._voice_controller.voice_activity_event.connect(self._log)
+        self._voice_controller.voice_error.connect(self.error_occurred.emit)
 
     # ──────────────────────────────────────────
     # Properties
@@ -139,6 +166,26 @@ class DesktopController(QObject):
     def is_client_authenticated(self) -> bool:
         """Whether a companion client is connected and authenticated."""
         return self._server.is_authenticated
+
+    @property
+    def voice_controller(self) -> VoiceInteractionController:
+        """Push-to-talk voice interaction controller."""
+        return self._voice_controller
+
+    @property
+    def voice_state(self) -> str:
+        """Current push-to-talk voice state string."""
+        return self._voice_controller.state.value
+
+    @property
+    def is_microphone_active(self) -> bool:
+        """Whether the push-to-talk microphone is actively recording."""
+        return self._voice_controller.is_microphone_active
+
+    @property
+    def is_speaking(self) -> bool:
+        """Whether instruction audio is actively playing."""
+        return self._voice_controller.is_speaking
 
     @property
     def is_active(self) -> bool:
@@ -260,6 +307,32 @@ class DesktopController(QObject):
             self._restarting = False
             self.start()
 
+    @Slot()
+    def start_push_to_talk(self, *, user_initiated: bool = True) -> None:
+        """Start push-to-talk microphone capture from an explicit user action."""
+        self._voice_controller.start_push_to_talk(user_initiated=user_initiated)
+
+    @Slot()
+    def stop_push_to_talk(
+        self,
+        *,
+        auto_speak_response: bool = False,
+    ) -> GuidanceInstruction | None:
+        """Stop push-to-talk capture, transcribe, and route spoken request to task pipeline."""
+        return self._voice_controller.stop_push_to_talk_and_process(
+            auto_speak_response=auto_speak_response,
+        )
+
+    @Slot()
+    def read_current_instruction_aloud(self, *, user_initiated: bool = True) -> None:
+        """Read the current task step instruction aloud via TTS."""
+        self._voice_controller.speak_current_instruction(user_initiated=user_initiated)
+
+    @Slot()
+    def cancel_voice(self) -> None:
+        """Immediately cancel/stop any active push-to-talk recording, STT, or TTS playback."""
+        self._voice_controller.cancel_or_stop()
+
     # ──────────────────────────────────────────
     # Internal Lifecycle Sequencing & Helpers
     # ──────────────────────────────────────────
@@ -373,6 +446,8 @@ class DesktopController(QObject):
         self._stopping = True
         self._log("Stopping companion services...", "INFO")
         try:
+            # Immediately cancel/stop any active push-to-talk recording or speech playback
+            self._voice_controller.cancel_or_stop()
             total_timeout_ms = max(1, int(timeout_ms))
             started_at = time.monotonic()
 
@@ -542,3 +617,19 @@ class DesktopController(QObject):
         self._log(f"Server error: {message}", "ERROR")
         self.error_occurred.emit(message)
         self._emit_status()
+
+    def _on_voice_state_changed(self, new_voice_state: str) -> None:
+        self.voice_state_changed.emit(new_voice_state)
+        if self._server.is_authenticated:
+            target_robot_state: str | None = None
+            if new_voice_state == "RECORDING":
+                target_robot_state = "LISTENING"
+            elif new_voice_state in {"TRANSCRIBING", "PROCESSING"}:
+                target_robot_state = "THINKING"
+            elif new_voice_state == "IDLE":
+                target_robot_state = "IDLE"
+            if target_robot_state is not None:
+                try:
+                    self._server.set_state(target_robot_state)
+                except Exception:
+                    pass

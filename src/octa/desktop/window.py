@@ -93,6 +93,51 @@ class DiagnosticWindow(QWidget):
         btn_layout.addWidget(self._btn_clear)
         main_layout.addLayout(btn_layout)
 
+        # ── Voice Interaction (Push-to-Talk) ─────────────────
+        voice_group = QGroupBox("Voice Interaction (Push-to-Talk Only)", self)
+        voice_layout = QVBoxLayout(voice_group)
+        voice_layout.setSpacing(6)
+
+        self._lbl_voice_providers = QLabel(
+            self._controller.voice_controller.get_provider_status_summary(),
+            self,
+        )
+        self._lbl_mic_status = QLabel("Microphone: INACTIVE (Push-to-Talk Only)", self)
+        self._lbl_voice_state = QLabel("Voice State: IDLE", self)
+        initial_instruction = self._controller.voice_controller.last_instruction.instruction_text
+        self._lbl_instruction = QLabel(
+            f"Current Instruction: {initial_instruction}",
+            self,
+        )
+        self._lbl_instruction.setWordWrap(True)
+
+        for v_lbl in (
+            self._lbl_voice_providers,
+            self._lbl_mic_status,
+            self._lbl_voice_state,
+            self._lbl_instruction,
+        ):
+            v_lbl.setFont(label_font)
+            voice_layout.addWidget(v_lbl)
+
+        voice_btn_layout = QHBoxLayout()
+        voice_btn_layout.setSpacing(8)
+
+        self._btn_ptt = QPushButton("Push to Talk", self)
+        self._btn_read_aloud = QPushButton("Read Instruction Aloud", self)
+        self._btn_voice_cancel = QPushButton("Stop / Cancel Voice", self)
+
+        self._btn_ptt.clicked.connect(self._on_ptt_clicked)
+        self._btn_read_aloud.clicked.connect(self._on_read_aloud_clicked)
+        self._btn_voice_cancel.clicked.connect(self._controller.cancel_voice)
+
+        voice_btn_layout.addWidget(self._btn_ptt)
+        voice_btn_layout.addWidget(self._btn_read_aloud)
+        voice_btn_layout.addWidget(self._btn_voice_cancel)
+        voice_layout.addLayout(voice_btn_layout)
+
+        main_layout.addWidget(voice_group)
+
         # ── Activity & Error Log ─────────────────────────────
         log_group = QGroupBox("Activity & Diagnostics Log", self)
         log_layout = QVBoxLayout(log_group)
@@ -117,6 +162,10 @@ class DiagnosticWindow(QWidget):
         self._controller.client_disconnected.connect(self._on_client_disconnected)
         self._controller.robot_state_changed.connect(self._on_robot_state_changed)
         self._controller.log_message.connect(self._append_log)
+        self._controller.voice_state_changed.connect(self._on_voice_state_changed)
+        self._controller.microphone_active_changed.connect(self._on_microphone_active_changed)
+        self._controller.speaking_active_changed.connect(self._on_speaking_active_changed)
+        self._controller.instruction_updated.connect(self._on_instruction_updated)
 
     # ──────────────────────────────────────────
     # UI Update Slots
@@ -129,6 +178,7 @@ class DiagnosticWindow(QWidget):
         self._update_url_display()
         self._update_client_display()
         self._update_robot_display()
+        self._update_voice_display()
         self._update_buttons()
 
     def _update_process_display(self) -> None:
@@ -158,6 +208,16 @@ class DiagnosticWindow(QWidget):
     def _update_robot_display(self) -> None:
         state = self._controller.robot_state
         self._lbl_robot.setText(f"Robot State: {state}")
+
+    def _update_voice_display(self) -> None:
+        self._lbl_voice_providers.setText(
+            self._controller.voice_controller.get_provider_status_summary()
+        )
+        mic_active = self._controller.is_microphone_active
+        self._on_microphone_active_changed(mic_active)
+        self._on_voice_state_changed(self._controller.voice_state)
+        inst = self._controller.voice_controller.last_instruction
+        self._lbl_instruction.setText(f"Current Instruction: {inst.instruction_text}")
 
     def _update_buttons(self) -> None:
         is_running = self._controller.process_manager.is_running
@@ -213,6 +273,55 @@ class DiagnosticWindow(QWidget):
     def _on_robot_state_changed(self, _prev: str, new_state: str) -> None:
         self._lbl_robot.setText(f"Robot State: {new_state}")
 
+    @Slot(str)
+    def _on_voice_state_changed(self, new_state: str) -> None:
+        self._lbl_voice_providers.setText(
+            self._controller.voice_controller.get_provider_status_summary()
+        )
+        last_err = self._controller.voice_controller.last_error
+        if new_state == "ERROR" and last_err:
+            self._lbl_voice_state.setText(f"Voice State: ERROR — {last_err}")
+        else:
+            self._lbl_voice_state.setText(f"Voice State: {new_state}")
+
+    @Slot(bool)
+    def _on_microphone_active_changed(self, active: bool) -> None:
+        if active:
+            self._lbl_mic_status.setText("Microphone: RECORDING (LIVE — Click Stop or Release)")
+            self._lbl_mic_status.setStyleSheet("color: #dc2626; font-weight: bold;")
+            self._btn_ptt.setText("Release / Finish Push to Talk")
+        else:
+            self._lbl_mic_status.setText("Microphone: INACTIVE (Push-to-Talk Only)")
+            self._lbl_mic_status.setStyleSheet("")
+            self._btn_ptt.setText("Push to Talk")
+
+    @Slot(bool)
+    def _on_speaking_active_changed(self, _speaking: bool) -> None:
+        self._on_voice_state_changed(self._controller.voice_state)
+
+    @Slot(str, str)
+    def _on_instruction_updated(self, _step_id: str, instruction_text: str) -> None:
+        self._lbl_instruction.setText(f"Current Instruction: {instruction_text}")
+
+    @Slot()
+    def _on_ptt_clicked(self) -> None:
+        """Toggle push-to-talk recording from an explicit user button click."""
+        try:
+            if self._controller.is_microphone_active:
+                self._controller.stop_push_to_talk()
+            else:
+                self._controller.start_push_to_talk(user_initiated=True)
+        except Exception:
+            self._update_voice_display()
+
+    @Slot()
+    def _on_read_aloud_clicked(self) -> None:
+        """Trigger reading the current instruction aloud from an explicit user click."""
+        try:
+            self._controller.read_current_instruction_aloud(user_initiated=True)
+        except Exception:
+            self._update_voice_display()
+
     @Slot(str, str, str)
     def _append_log(self, timestamp: str, message: str, level: str) -> None:
         # Guarantee auth token is never rendered
@@ -261,3 +370,23 @@ class DiagnosticWindow(QWidget):
     def get_log_text(self) -> str:
         """Return the complete content of the log view."""
         return self._log_view.toPlainText()
+
+    def get_voice_provider_status(self) -> str:
+        """Return text of the voice providers status label."""
+        return self._lbl_voice_providers.text()
+
+    def get_microphone_status(self) -> str:
+        """Return text of the microphone activity indicator label."""
+        return self._lbl_mic_status.text()
+
+    def get_voice_state(self) -> str:
+        """Return text of the voice state label."""
+        return self._lbl_voice_state.text()
+
+    def get_current_instruction_text(self) -> str:
+        """Return text of the current instruction label."""
+        return self._lbl_instruction.text()
+
+    def is_microphone_indicator_active(self) -> bool:
+        """Return True when the UI microphone indicator shows live recording."""
+        return "RECORDING" in self._lbl_mic_status.text()

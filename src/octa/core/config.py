@@ -21,10 +21,18 @@ class ConfigError(ValueError):
 
 
 VALID_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+VALID_VOICE_PROVIDERS = frozenset({"disabled", "mock", "remote_http"})
 DEFAULT_LLM_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 DEFAULT_LLM_MODEL = "gpt-4o-mini"
 DEFAULT_LLM_TIMEOUT_SECONDS = 30.0
 DEFAULT_LLM_ALLOW_LOCAL_HTTP = False
+DEFAULT_VOICE_PROVIDER = "disabled"
+DEFAULT_VOICE_STT_MODEL = "whisper-1"
+DEFAULT_VOICE_TTS_MODEL = "tts-1"
+DEFAULT_VOICE_TTS_VOICE = "alloy"
+DEFAULT_VOICE_TIMEOUT_SECONDS = 30.0
+DEFAULT_VOICE_ALLOW_LOCAL_HTTP = False
+DEFAULT_VOICE_MAX_RECORDING_SECONDS = 30.0
 
 
 def _get_default_app_dir() -> Path:
@@ -144,6 +152,19 @@ class AppConfig:
     llm_timeout_seconds: float = DEFAULT_LLM_TIMEOUT_SECONDS
     llm_allow_local_http: bool = False
     capture_save_screenshots: bool = False
+    voice_stt_provider: str = DEFAULT_VOICE_PROVIDER
+    voice_tts_provider: str = DEFAULT_VOICE_PROVIDER
+    voice_stt_endpoint: str | None = field(default=None, repr=False)
+    voice_stt_model: str = DEFAULT_VOICE_STT_MODEL
+    voice_stt_api_key: str | None = field(default=None, repr=False)
+    voice_tts_endpoint: str | None = field(default=None, repr=False)
+    voice_tts_model: str = DEFAULT_VOICE_TTS_MODEL
+    voice_tts_voice: str = DEFAULT_VOICE_TTS_VOICE
+    voice_tts_api_key: str | None = field(default=None, repr=False)
+    voice_timeout_seconds: float = DEFAULT_VOICE_TIMEOUT_SECONDS
+    voice_allow_local_http: bool = DEFAULT_VOICE_ALLOW_LOCAL_HTTP
+    voice_save_audio: bool = False
+    voice_max_recording_seconds: float = DEFAULT_VOICE_MAX_RECORDING_SECONDS
 
     def __post_init__(self) -> None:
         """Validate configuration values and normalize types."""
@@ -210,6 +231,82 @@ class AppConfig:
             "llm_timeout_seconds",
             _parse_float(self.llm_timeout_seconds, "llm_timeout_seconds", strictly_positive=True),
         )
+
+        # Validate Voice settings (Phase 5.0)
+        object.__setattr__(
+            self,
+            "voice_allow_local_http",
+            _parse_bool(self.voice_allow_local_http, "voice_allow_local_http"),
+        )
+        object.__setattr__(
+            self,
+            "voice_save_audio",
+            _parse_bool(self.voice_save_audio, "voice_save_audio"),
+        )
+        object.__setattr__(
+            self,
+            "voice_timeout_seconds",
+            _parse_float(
+                self.voice_timeout_seconds,
+                "voice_timeout_seconds",
+                strictly_positive=True,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "voice_max_recording_seconds",
+            _parse_float(
+                self.voice_max_recording_seconds,
+                "voice_max_recording_seconds",
+                strictly_positive=True,
+            ),
+        )
+
+        for provider_field in ("voice_stt_provider", "voice_tts_provider"):
+            raw_provider = getattr(self, provider_field)
+            if not isinstance(raw_provider, str) or not raw_provider.strip():
+                raise ConfigError(f"Field '{provider_field}' must be a non-empty string.")
+            normalized_provider = raw_provider.strip().lower()
+            if normalized_provider not in VALID_VOICE_PROVIDERS:
+                valid_providers = ", ".join(sorted(VALID_VOICE_PROVIDERS))
+                raise ConfigError(
+                    f"Invalid {provider_field} '{raw_provider}'. Must be one of: {valid_providers}."
+                )
+            object.__setattr__(self, provider_field, normalized_provider)
+
+        for ep_field in ("voice_stt_endpoint", "voice_tts_endpoint"):
+            raw_ep = getattr(self, ep_field)
+            if raw_ep is not None:
+                if not isinstance(raw_ep, str):
+                    raise ConfigError(f"Field '{ep_field}' must be a URL string or None.")
+                cleaned_ep = raw_ep.strip()
+                if cleaned_ep:
+                    validated_ep = _validate_endpoint_url(
+                        cleaned_ep,
+                        ep_field,
+                        allow_local_http=self.voice_allow_local_http,
+                    )
+                    object.__setattr__(self, ep_field, validated_ep)
+                else:
+                    object.__setattr__(self, ep_field, None)
+
+        for str_field in ("voice_stt_model", "voice_tts_model", "voice_tts_voice"):
+            raw_val = getattr(self, str_field)
+            if not isinstance(raw_val, str) or not raw_val.strip():
+                raise ConfigError(f"Field '{str_field}' must be a non-empty string.")
+            object.__setattr__(self, str_field, raw_val.strip())
+
+        for key_field in ("voice_stt_api_key", "voice_tts_api_key"):
+            raw_key = getattr(self, key_field)
+            if raw_key is not None:
+                if not isinstance(raw_key, str):
+                    raise ConfigError(f"Field '{key_field}' must be a string or None.")
+                cleaned_voice_key = raw_key.strip()
+                object.__setattr__(
+                    self,
+                    key_field,
+                    cleaned_voice_key if cleaned_voice_key else None,
+                )
 
         # Normalize directories to Path
         if not isinstance(self.app_dir, Path):
@@ -366,6 +463,88 @@ class AppConfig:
                 else _parse_bool(
                     get_val("OCTA_CAPTURE_SAVE_SCREENSHOTS", False),
                     "capture_save_screenshots",
+                )
+            ),
+            "voice_stt_provider": (
+                overrides["voice_stt_provider"]
+                if "voice_stt_provider" in overrides
+                else get_val("OCTA_VOICE_STT_PROVIDER", DEFAULT_VOICE_PROVIDER)
+            ),
+            "voice_tts_provider": (
+                overrides["voice_tts_provider"]
+                if "voice_tts_provider" in overrides
+                else get_val("OCTA_VOICE_TTS_PROVIDER", DEFAULT_VOICE_PROVIDER)
+            ),
+            "voice_stt_endpoint": (
+                overrides["voice_stt_endpoint"]
+                if "voice_stt_endpoint" in overrides
+                else get_val("OCTA_VOICE_STT_ENDPOINT")
+            ),
+            "voice_stt_model": (
+                overrides["voice_stt_model"]
+                if "voice_stt_model" in overrides
+                else get_val("OCTA_VOICE_STT_MODEL", DEFAULT_VOICE_STT_MODEL)
+            ),
+            "voice_stt_api_key": (
+                overrides["voice_stt_api_key"]
+                if "voice_stt_api_key" in overrides
+                else (get_val("OCTA_VOICE_STT_API_KEY") or get_val("OCTA_VOICE_API_KEY"))
+            ),
+            "voice_tts_endpoint": (
+                overrides["voice_tts_endpoint"]
+                if "voice_tts_endpoint" in overrides
+                else get_val("OCTA_VOICE_TTS_ENDPOINT")
+            ),
+            "voice_tts_model": (
+                overrides["voice_tts_model"]
+                if "voice_tts_model" in overrides
+                else get_val("OCTA_VOICE_TTS_MODEL", DEFAULT_VOICE_TTS_MODEL)
+            ),
+            "voice_tts_voice": (
+                overrides["voice_tts_voice"]
+                if "voice_tts_voice" in overrides
+                else get_val("OCTA_VOICE_TTS_VOICE", DEFAULT_VOICE_TTS_VOICE)
+            ),
+            "voice_tts_api_key": (
+                overrides["voice_tts_api_key"]
+                if "voice_tts_api_key" in overrides
+                else (get_val("OCTA_VOICE_TTS_API_KEY") or get_val("OCTA_VOICE_API_KEY"))
+            ),
+            "voice_timeout_seconds": (
+                overrides["voice_timeout_seconds"]
+                if "voice_timeout_seconds" in overrides
+                else _parse_float(
+                    get_val("OCTA_VOICE_TIMEOUT", DEFAULT_VOICE_TIMEOUT_SECONDS),
+                    "voice_timeout_seconds",
+                    strictly_positive=True,
+                )
+            ),
+            "voice_allow_local_http": (
+                overrides["voice_allow_local_http"]
+                if "voice_allow_local_http" in overrides
+                else _parse_bool(
+                    get_val("OCTA_VOICE_ALLOW_LOCAL_HTTP", DEFAULT_VOICE_ALLOW_LOCAL_HTTP),
+                    "voice_allow_local_http",
+                )
+            ),
+            "voice_save_audio": (
+                overrides["voice_save_audio"]
+                if "voice_save_audio" in overrides
+                else _parse_bool(
+                    get_val("OCTA_VOICE_SAVE_AUDIO", False),
+                    "voice_save_audio",
+                )
+            ),
+            "voice_max_recording_seconds": (
+                overrides["voice_max_recording_seconds"]
+                if "voice_max_recording_seconds" in overrides
+                else _parse_float(
+                    get_val(
+                        "OCTA_VOICE_MAX_RECORDING_SECONDS",
+                        DEFAULT_VOICE_MAX_RECORDING_SECONDS,
+                    ),
+                    "voice_max_recording_seconds",
+                    strictly_positive=True,
                 )
             ),
         }

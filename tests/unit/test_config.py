@@ -217,3 +217,70 @@ def test_phase4_https_and_loopback_http_config_policy(
     env_cfg = AppConfig.load(base_dir=tmp_path)
     assert env_cfg.llm_endpoint == "http://[::1]:8080/v1/chat/completions"
     assert env_cfg.llm_allow_local_http is True
+
+
+def test_phase5_voice_config_defaults_and_privacy(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Verify Phase 5 voice config defaults to disabled and hides credentials in repr/str."""
+    import secrets
+
+    default_cfg = AppConfig()
+    assert default_cfg.voice_stt_provider == "disabled"
+    assert default_cfg.voice_tts_provider == "disabled"
+    assert default_cfg.voice_stt_endpoint is None
+    assert default_cfg.voice_tts_endpoint is None
+    assert default_cfg.voice_save_audio is False
+    assert default_cfg.voice_allow_local_http is False
+    assert default_cfg.voice_max_recording_seconds == 30.0
+
+    stt_key = secrets.token_urlsafe(16)
+    tts_key = secrets.token_urlsafe(16)
+    monkeypatch.setenv("OCTA_VOICE_STT_PROVIDER", "remote_http")
+    monkeypatch.setenv("OCTA_VOICE_TTS_PROVIDER", "remote_http")
+    monkeypatch.setenv(
+        "OCTA_VOICE_STT_ENDPOINT", "https://speech.example.com/v1/audio/transcriptions"
+    )
+    monkeypatch.setenv("OCTA_VOICE_TTS_ENDPOINT", "https://speech.example.com/v1/audio/speech")
+    monkeypatch.setenv("OCTA_VOICE_STT_API_KEY", stt_key)
+    monkeypatch.setenv("OCTA_VOICE_TTS_API_KEY", tts_key)
+    monkeypatch.setenv("OCTA_VOICE_SAVE_AUDIO", "false")
+
+    cfg = AppConfig.load(base_dir=tmp_path)
+    assert cfg.voice_stt_provider == "remote_http"
+    assert cfg.voice_tts_provider == "remote_http"
+    assert cfg.voice_stt_endpoint == "https://speech.example.com/v1/audio/transcriptions"
+    assert cfg.voice_tts_endpoint == "https://speech.example.com/v1/audio/speech"
+    assert cfg.voice_stt_api_key == stt_key
+    assert cfg.voice_tts_api_key == tts_key
+    assert cfg.voice_save_audio is False
+
+    assert stt_key not in repr(cfg)
+    assert stt_key not in str(cfg)
+    assert tts_key not in repr(cfg)
+    assert tts_key not in str(cfg)
+
+    with pytest.raises(ConfigError, match="Invalid voice_stt_provider"):
+        AppConfig(voice_stt_provider="cloud_unknown")
+
+    # Unsupported 'local' provider option is rejected rather than mapped to a mock
+    with pytest.raises(ConfigError, match="Invalid voice_stt_provider"):
+        AppConfig(voice_stt_provider="local")
+    with pytest.raises(ConfigError, match="Invalid voice_tts_provider"):
+        AppConfig(voice_tts_provider="local")
+
+    with pytest.raises(ConfigError, match="Invalid URL"):
+        AppConfig(voice_stt_endpoint="ftp://invalid.example.com")
+
+    with pytest.raises(ConfigError, match="Insecure remote HTTP endpoint"):
+        AppConfig(voice_tts_endpoint="http://speech.example.com/v1/audio/speech")
+
+    with pytest.raises(ConfigError, match="Loopback HTTP endpoint"):
+        AppConfig(voice_stt_endpoint="http://127.0.0.1:9000/v1/audio/transcriptions")
+
+    loopback_voice_cfg = AppConfig(
+        voice_stt_endpoint="http://127.0.0.1:9000/v1/audio/transcriptions",
+        voice_allow_local_http=True,
+    )
+    assert loopback_voice_cfg.voice_stt_endpoint == "http://127.0.0.1:9000/v1/audio/transcriptions"

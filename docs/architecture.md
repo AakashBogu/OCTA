@@ -1,6 +1,6 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), and Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay) are implemented. Voice interaction (Phase 5.0) and full tutorial loop orchestration (Phase 6.0) remain **proposed**.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), and Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing) are implemented. Full tutorial loop orchestration (Phase 6.0) remains **proposed**.
 >
 > **Last updated:** 2026-11-09
 
@@ -275,6 +275,19 @@ Configuration is managed via the strongly-typed `AppConfig` frozen dataclass:
   - `llm_timeout_seconds: float` (default: `30.0`, validated `> 0`)
   - `llm_allow_local_http: bool` (default: `False`; when `True`, allows `http://` only for loopback hosts `localhost`, `127.0.0.0/8`, `::1`)
   - `capture_save_screenshots: bool` (default: `False`)
+  - `voice_stt_provider: str` (default: `"disabled"`, validated against `"disabled"`, `"mock"`, `"remote_http"`)
+  - `voice_tts_provider: str` (default: `"disabled"`, validated against `"disabled"`, `"mock"`, `"remote_http"`)
+  - `voice_stt_endpoint: str | None` (default: `None`, `repr=False`, validated for `https://` or opt-in loopback `http://`)
+  - `voice_stt_model: str` (default: `"whisper-1"`)
+  - `voice_stt_api_key: str | None` (default: `None`, `repr=False`)
+  - `voice_tts_endpoint: str | None` (default: `None`, `repr=False`, validated for `https://` or opt-in loopback `http://`)
+  - `voice_tts_model: str` (default: `"tts-1"`)
+  - `voice_tts_voice: str` (default: `"alloy"`)
+  - `voice_tts_api_key: str | None` (default: `None`, `repr=False`)
+  - `voice_timeout_seconds: float` (default: `20.0`, validated `> 0`)
+  - `voice_allow_local_http: bool` (default: `False`; when `True`, allows `http://` only for loopback hosts)
+  - `voice_save_audio: bool` (default: `False`)
+  - `voice_max_recording_seconds: float` (default: `30.0`, validated `> 0`)
 
 #### Configuration Precedence
 
@@ -315,7 +328,7 @@ When loaded via `AppConfig.load(...)`, values are resolved with the following pr
 | Godot WebSocket Client | ✅ Implemented (Phase 3.0) | GDScript `OctaWsClient` and `OctaProtocol` using `WebSocketPeer`, safe local handoff |
 | PySide6 Desktop UI / Tray | ✅ Implemented (Phase 2.5) | `OctaSystemTray`, `DiagnosticWindow`, `DesktopController`, `OctaApplication` |
 | Screen Capture & AI Integration | ✅ Implemented (Phase 4.0) | `octa.intelligence` (`ScreenCapturer`, `TaskDefinition`, `ConsentManager`, `OpenAICompatibleAdapter`, `ProgressVerifier`, `GuidanceOverlayWidget`) |
-| Voice Interaction (STT/TTS) | ⬜ Planned (Phase 5.0) | Speech synthesis and recognition |
+| Voice Interaction (STT/TTS) | ✅ Implemented (Phase 5.0) | `octa.voice` (`PushToTalkRecorder`, `SpeechToTextProvider`, `TextToSpeechProvider`, `VoiceConsentManager`, `VoiceInteractionController`) |
 
 ---
 
@@ -629,3 +642,64 @@ src/octa/intelligence/
    - `GuidanceOverlayWidget` validates `HighlightSpec` and `ArrowSpec` coordinates against `OverlayBounds` (rejecting negative coordinates, zero/negative dimensions, zero-length arrows, and out-of-screen bounds with `InvalidOverlayCoordinatesError`).
    - Configured with `Qt.WindowType.WindowTransparentForInput`, `Qt.WindowType.WindowDoesNotAcceptFocus`, `Qt.WindowType.FramelessWindowHint`, `Qt.WindowType.WindowStaysOnTopHint`, `Qt.WidgetAttribute.WA_TransparentForMouseEvents`, and `Qt.FocusPolicy.NoFocus`.
    - Strictly passive: contains no input synthesis or automation routines and never clicks, types, or controls other applications.
+
+---
+
+## Phase 5.0 — Implemented Voice Interaction (Push-to-Talk)
+
+The Phase 5.0 Voice Interaction subsystem lives under `src/octa/voice/` and integrates with the existing `octa.intelligence` task/instruction pipeline (`TaskDefinition`, `TaskStep`, `GuidanceInstruction`, `ProgressVerifier`) and the PySide6 desktop monitor (`DesktopController` and `DiagnosticWindow`).
+
+```
+src/octa/voice/
+├── __init__.py       # Public exports for the Voice Interaction subsystem
+├── audio.py          # Push-to-talk audio models, WAV codec & QAudioSource capture
+├── consent.py        # Remote speech consent disclosure, dialog & single-use SHA-256 binding
+├── controller.py     # VoiceInteractionController & instruction pipeline routing
+├── exceptions.py     # Voice, microphone, consent, and provider exception hierarchy
+└── providers.py      # Injectable STT/TTS protocols, mocks, remote HTTP providers & catalog
+```
+
+### Architectural Decisions & Rationale
+
+1. **Zero New Runtime Dependencies (`PySide6.QtMultimedia` + Python Standard Library):**
+   - Verified that `PySide6.QtMultimedia` (`QAudioFormat`, `QAudioSource`, `QAudioSink`, `QMediaDevices`, `QBuffer`) and `PySide6.QtTextToSpeech` are included with the project's existing `PySide6>=6.7.0` installation.
+   - Added zero new packages to `pyproject.toml`.
+   - Uses Python's standard `wave` and `io.BytesIO` modules for in-memory 16-bit mono PCM WAV encoding (`encode_pcm16_to_wav_bytes`) and metadata inspection (`decode_wav_metadata`).
+
+2. **Push-to-Talk Only, No Continuous Recording, and No Default Audio Persistence (`audio.py`):**
+   - `PushToTalkRecorder.start_push_to_talk(...)` requires `user_initiated=True` (raising `PushToTalkRequiredError` otherwise) and rejects `continuous=True` or `wake_word=True` (`ContinuousRecordingForbiddenError`).
+   - Wake-word detection (`enable_wake_word_detection`, `start_continuous_listening`) is explicitly deferred and blocked at runtime.
+   - Recorded audio is held solely in memory (`RecordedAudio.wav_bytes`, `repr=False`) and is never written to disk by default (`voice_save_audio=False`).
+   - `RecordedAudio`, `TranscriptionResult`, and `SynthesizedSpeech` mark raw audio bytes and transcript text with `repr=False` and expose only safe metadata (`duration_ms`, `byte_size`, `sha256_prefix`, `char_count`, `text_sha256_prefix`) in `__repr__` and `__str__`, keeping microphone audio and spoken transcripts out of logs.
+
+3. **Explicit Destination Disclosure & Single-Use Consent Before Remote Speech Calls (`consent.py`):**
+   - Before microphone audio (`VoiceTransmissionKind.SPEECH_TO_TEXT`) or user/instruction text (`VoiceTransmissionKind.TEXT_TO_SPEECH`) is sent to any remote speech provider, `RemoteHTTPSTTProvider` and `RemoteHTTPTTSProvider` construct a `VoiceConsentRequest`.
+   - `VoiceConsentRequest` discloses the sanitized destination endpoint (`format_endpoint_for_disclosure` with URL credentials, query parameters, and fragments redacted as `[REDACTED]`), provider name, model, voice name, payload byte size, audio duration or character count, task/step context, and purpose.
+   - `VoiceConsentDialog` displays the destination and metadata summary (without logging or exposing raw audio bytes, transcript text, or hash fingerprints) and sets **Cancel** as the default action so pressing Enter or Escape cancels transmission (`VoiceConsentDeclinedError`).
+   - `VoiceConsentDecision` is single-use and cryptographically bound (`request_sha256` and `endpoint_sha256`) to the exact audio/text payload, destination endpoint, model, voice, and task context. Any attempt to reuse an approval or alter the audio, text, endpoint, query string, URL credentials, or model raises `VoiceConsentDeclinedError` before reading the API key or opening a network connection.
+
+4. **HTTPS Enforcement, Redirect Blocking & No Assumed Paid Cloud Provider (`providers.py`):**
+   - `AppConfig` defaults `voice_stt_provider` and `voice_tts_provider` to `"disabled"` (`DisabledSTTProvider` and `DisabledTTSProvider`). OCTA never assumes or contacts a paid cloud speech provider unless explicitly configured.
+   - `validate_voice_endpoint` requires `https://` for all remote speech endpoints; plain `http://` is permitted only for loopback hosts (`localhost`, `127.0.0.1`, `::1`) when `allow_local_http=True` (`OCTA_VOICE_ALLOW_LOCAL_HTTP=true`) is explicitly enabled.
+   - `VoiceNoRedirectHandler` and `build_voice_no_redirect_opener` reject HTTP redirects (`301`, `302`, `303`, `307`, `308`) with `VoiceTransportError`, preventing credentials, microphone audio, or user text from being forwarded to an unconsented redirect target.
+   - Consent is verified and consumed **before** `require_stt_api_key()` / `require_tts_api_key()` is read, ensuring credentials are never accessed or transmitted if consent is declined or mismatched.
+   - When running under `pytest`, default live network calls are blocked (`VoiceTransportError`).
+
+5. **Connection to the Task & Instruction Pipeline (`controller.py`), Real WAV Playback (`QtAudioPlaybackBackend`), and Visible UI Indicators (`window.py`):**
+   - `VoiceInteractionController` and `VoiceInteractionController.from_app_config` wire `QtAudioPlaybackBackend` (`create_playback_backend`) by default so synthesized WAV speech is decoded and played through `QAudioSink` and an in-memory `QBuffer`, transitioning `VoiceState.SPEAKING -> VoiceState.IDLE` when `QAudio.State.IdleState` fires.
+   - `VoiceInteractionController` connects push-to-talk transcripts to `TaskDefinition` and `TaskStep` navigation (`current`, `next`, `previous`, `hint`, `goal`) and routes spoken requests through `ProgressVerifier.generate_step_instruction(...)` when an LLM adapter is injected, or falls back to deterministic local step guidance.
+   - When STT or TTS providers are `"disabled"` (`DisabledSTTProvider`, `DisabledTTSProvider`), `DiagnosticWindow` clearly displays `Voice Providers: STT=disabled (Disabled) | TTS=disabled (Disabled)`, and attempting to record or speak explains the disabled status in the UI and log without activating the microphone or pretending to speak.
+   - `cancel_or_stop()` immediately aborts active microphone capture (`PushToTalkRecorder.cancel_recording`), cancels in-flight STT/TTS provider operations, stops audio playback (`AudioPlaybackBackend.stop`), and returns the state to `VoiceState.IDLE`.
+
+### Voice Provider Options & Requirements (`VOICE_PROVIDER_OPTIONS`)
+
+Supported `OCTA_VOICE_STT_PROVIDER` and `OCTA_VOICE_TTS_PROVIDER` configuration modes are `"disabled"`, `"mock"`, and `"remote_http"`. Before making any provider-specific network calls, `VOICE_PROVIDER_OPTIONS` documents both implemented modes and candidate future options:
+
+| Option ID | Config Value | Implemented | Kind | Network Access | Extra Dependencies | Credentials / Configuration Required |
+|---|---|---|---|---|---|---|
+| `disabled` *(default)* | `"disabled"` | ✅ Yes | STT & TTS | None | None | Default safe setting (`OCTA_VOICE_STT_PROVIDER=disabled`, `OCTA_VOICE_TTS_PROVIDER=disabled`). Clearly indicated as disabled in UI. |
+| `mock` | `"mock"` | ✅ Yes | STT & TTS | None (in-memory) | None | Deterministic mock provider (`OCTA_VOICE_STT_PROVIDER=mock`, `OCTA_VOICE_TTS_PROVIDER=mock`) for offline testing and flow verification. |
+| `local_loopback_http_server` | `"remote_http"` | ✅ Yes | STT & TTS | Loopback only (`127.0.0.1` / `localhost`) | External local server (e.g., `whisper.cpp`, LocalAI, OpenedAI Speech) | Requires `OCTA_VOICE_*_PROVIDER=remote_http`, `http://127.0.0.1:<port>/...` endpoint, `OCTA_VOICE_ALLOW_LOCAL_HTTP=true`, and explicit per-request consent. Plays WAV via `QtAudioPlaybackBackend`. |
+| `remote_https_openai_compatible` | `"remote_http"` | ✅ Yes | STT & TTS | Outbound HTTPS (`https://`) | None (`urllib.request` stdlib) | Requires `OCTA_VOICE_*_PROVIDER=remote_http`, `https://` endpoint, `OCTA_VOICE_*_API_KEY`, and explicit per-request user consent. Plays WAV via `QtAudioPlaybackBackend`. |
+| `faster_whisper_local` | `None` | ⬜ Candidate | STT | None (offline) | `faster-whisper` + local model weights | Not bundled; would require adding `faster-whisper` and local CTranslate2 Whisper weights. |
+| `vosk_local` | `None` | ⬜ Candidate | STT | None (offline) | `vosk` + local acoustic model | Not bundled; would require adding `vosk` and a local Vosk model directory. |

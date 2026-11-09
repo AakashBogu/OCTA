@@ -448,3 +448,58 @@ Designed, implemented, and verified the Phase 4.0 Intelligence Layer (`src/octa/
 
 - User review of Phase 4.0 changes.
 - Proceed to Phase 5.0 (Voice Interaction) or Phase 6.0 (End-to-End Tutorial Engine).
+
+---
+
+## Task: Phase 5.0 — Voice Interaction
+
+**Date:** 2026-11-09
+**Phase:** 5.0
+
+### Summary
+
+Designed, implemented, and verified Phase 5.0 — Voice Interaction (`src/octa/voice/`) and integrated it into the desktop monitor (`DesktopController` and `DiagnosticWindow`). Verified that `PySide6.QtMultimedia` (`QAudioFormat`, `QAudioSource`, `QAudioSink`, `QMediaDevices`, `QBuffer`) is already available in `.venv`, adding zero new dependencies to `pyproject.toml`. Built an explicit user-initiated push-to-talk recorder (`PushToTalkRecorder`) that never records continuously, never saves audio to disk by default (`voice_save_audio=False`), and explicitly defers/blocks wake-word detection (`ContinuousRecordingForbiddenError`). Created injectable `SpeechToTextProvider`, `TextToSpeechProvider`, and `AudioPlaybackBackend` protocols with safe `"disabled"` defaults (`DisabledSTTProvider`, `DisabledTTSProvider`), deterministic mocks (`MockSTTProvider`, `MockTTSProvider`, `MockAudioPlaybackBackend`), `QtAudioPlaybackBackend` (`create_playback_backend`), and remote HTTP providers (`RemoteHTTPSTTProvider`, `RemoteHTTPTTSProvider`) that disclose the sanitized destination endpoint and request single-use, SHA-256-bound user consent (`VoiceConsentRequest`, `VoiceConsentDecision`, `VoiceConsentDialog`, `VoiceConsentManager`) before reading credentials or transmitting microphone audio or user text. Enforced HTTPS for remote endpoints (allowing loopback HTTP only when `OCTA_VOICE_ALLOW_LOCAL_HTTP=true`), blocked HTTP redirects (`301`, `302`, `303`, `307`, `308`) via `VoiceNoRedirectHandler`, blocked live network calls under `pytest`, and kept credentials, audio bytes, and transcripts out of logs and `repr`/`str` outputs. Wired `QtAudioPlaybackBackend` by default in `VoiceInteractionController` and `VoiceInteractionController.from_app_config` for real WAV speech playback, clearly surfaced disabled provider status in `DiagnosticWindow` without pretending to record or speak, and added 21 unit tests covering Phase 5.0 voice configuration, audio capture/WAV codec/privacy, destination consent, provider security, production `QtAudioPlaybackBackend` wiring, and desktop UI integration.
+
+### Files Created
+
+- `src/octa/voice/__init__.py` — Public package exports for `octa.voice`.
+- `src/octa/voice/exceptions.py` — Voice exception hierarchy (`VoiceError`, `MicrophoneCaptureError`, `PushToTalkRequiredError`, `ContinuousRecordingForbiddenError`, `VoiceCancelledError`, `VoiceConsentError`, `VoiceConsentDeclinedError`, `SpeechProviderError`, `VoiceConfigurationError`, `VoiceMissingCredentialsError`, `VoiceTransportError`, `MalformedSpeechResponseError`, `AudioPlaybackError`).
+- `src/octa/voice/audio.py` — `AudioFormatSpec`, `RecordedAudio`, `TranscriptionResult`, `SynthesizedSpeech`, `AudioCaptureBackend`, `MockAudioCaptureBackend`, `QtAudioCaptureBackend`, `PushToTalkRecorder`, `encode_pcm16_to_wav_bytes`, and `decode_wav_metadata`.
+- `src/octa/voice/consent.py` — `VoiceTransmissionKind`, `VoiceConsentRequest`, `VoiceConsentDecision`, `VoiceConsentDialog`, `VoiceConsentManager`, and `compute_voice_request_sha256`.
+- `src/octa/voice/providers.py` — `SpeechToTextProvider`, `TextToSpeechProvider`, `AudioPlaybackBackend`, `DisabledSTTProvider`, `DisabledTTSProvider`, `MockSTTProvider`, `MockTTSProvider`, `MockAudioPlaybackBackend`, `QtAudioPlaybackBackend`, `RemoteVoiceConfig`, `RemoteHTTPSTTProvider`, `RemoteHTTPTTSProvider`, `VoiceNoRedirectHandler`, `build_voice_no_redirect_opener`, `validate_voice_endpoint`, `create_stt_provider`, `create_tts_provider`, `create_playback_backend`, and `VOICE_PROVIDER_OPTIONS`.
+- `src/octa/voice/controller.py` — `VoiceInteractionController`, `VoiceState`, `route_spoken_request_to_instruction`, and `build_default_companion_task`.
+- `tests/unit/test_voice_audio.py` — 6 unit tests covering WAV roundtrip, audio/transcript `repr` and log privacy, push-to-talk user action requirement, continuous/wake-word prohibition, in-memory capture, and immediate cancellation.
+- `tests/unit/test_voice_consent.py` — 3 unit tests covering destination disclosure, URL credential/query/fragment redaction, single-use audio/text SHA-256 binding, and dialog cancellation.
+- `tests/unit/test_voice_providers.py` — 6 unit tests covering disabled defaults, mock STT/TTS/playback protocols, HTTPS and loopback HTTP validation, consent-before-credentials enforcement, HTTP redirect blocking (`301`, `302`, `303`, `307`, `308`), and pytest live-network blocking.
+- `tests/unit/test_voice_controller.py` — 5 unit tests covering push-to-talk routing to the task/instruction pipeline, immediate cancel/stop, wake-word prohibition, visible microphone indicator in `DiagnosticWindow`, production `from_app_config` WAV playback through `QtAudioPlaybackBackend`, and disabled provider UI status/non-speaking enforcement.
+
+### Files Modified
+
+- `src/octa/core/config.py` — Added Phase 5.0 `voice_*` configuration fields with `"disabled"` defaults (`VALID_VOICE_PROVIDERS = {"disabled", "mock", "remote_http"}`), `repr=False` secret/endpoint masking, and URL validation.
+- `.env.example` — Added `OCTA_VOICE_*` environment variable template entries without secrets.
+- `src/octa/desktop/controller.py` — Integrated `VoiceInteractionController` with `DesktopController` signals, push-to-talk/read-aloud/cancel actions, and companion shutdown cleanup.
+- `src/octa/desktop/window.py` — Added Voice Interaction panel with provider status label (`_lbl_voice_providers`), live microphone activity indicator (`_lbl_mic_status`), voice state label (`_lbl_voice_state`), step instruction label (`_lbl_instruction`), and `Push to Talk`, `Read Instruction Aloud`, and `Stop / Cancel Voice` buttons.
+- `tests/unit/test_config.py` — Added `test_phase5_voice_config_defaults_and_privacy`.
+- `README.md` — Updated status, "What Works Now" section 8, architecture table, roadmap table, development status, and project structure tree.
+- `ROADMAP.md` — Marked Phase 5.0 completed with detailed checklist items and documented deferred wake-word detection.
+- `CHANGELOG.md` — Added Phase 5.0 entry under `[Unreleased]`.
+- `docs/architecture.md` — Updated status, configuration fields, component implementation status, and added Phase 5.0 architectural documentation and provider options table.
+- `docs/PROGRESS.md` — Appended this task entry.
+
+### Validation
+
+- **Targeted Phase 5.0 & Desktop Tests:** Ran `.\.venv\Scripts\python.exe -m pytest tests/unit/test_config.py tests/unit/test_voice_audio.py tests/unit/test_voice_consent.py tests/unit/test_voice_providers.py tests/unit/test_voice_controller.py tests/unit/test_desktop_window.py tests/unit/test_desktop_controller.py -v`, all 46 tests passed.
+- **Full Python Test Suite:** Ran `.\.venv\Scripts\python.exe -m pytest -v`, all 257 tests passed.
+- **Ruff Linter:** Ran `.\.venv\Scripts\ruff.exe check .`, all checks passed with 0 errors.
+- **Ruff Formatter:** Ran `.\.venv\Scripts\ruff.exe format --check .`, all files properly formatted.
+- **Git Diff Check:** Ran `git diff --check`, 0 whitespace errors.
+- **Git Staging Safety:** Verified via `git status --short` that all Phase 5 changes remain unstaged for review.
+
+### Blockers
+
+- None.
+
+### Next Step
+
+- User review of Phase 5.0 changes and selection of desired local or remote speech provider option if live speech calls are desired.
+- Proceed to Phase 6.0 (End-to-End Tutorial Engine).

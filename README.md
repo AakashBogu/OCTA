@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 4.0 — Screen Capture & AI Integration (complete)
+**Status:** 🟢 Phase 5.0 — Voice Interaction (complete)
 
-OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, and progress verification.
+OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), and Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay) are implemented. Voice interaction (Phase 5.0), full tutorial engine orchestration (Phase 6.0), and installer packaging remain planned.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), and Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout) are implemented. Full tutorial engine orchestration (Phase 6.0) and installer packaging remain planned.
 
 ---
 
@@ -28,13 +28,13 @@ OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop
 2. **Conversational Instructions** — Natural-language guidance that walks users through tasks in any desktop application.
 3. **Visual Screen Guidance** — On-screen highlights, arrows, and overlays that direct attention to the relevant UI elements.
 4. **Progress Verification** — Automated checks (via screen capture and AI analysis) to confirm the user completed each step correctly.
-5. **Voice Interaction** — Planned speech-to-text and text-to-speech for hands-free operation.
+5. **Voice Interaction** — Push-to-talk speech-to-text and text-to-speech instruction readout with visible microphone activity and immediate cancel/stop.
 
 ---
 
 ## What Works Now
 
-OCTA currently includes seven verified subsystems:
+OCTA currently includes eight verified subsystems:
 
 ### 1. Phase 1 Godot 3D Character Prototype
 - A simple 3D robot character built programmatically from Godot primitive meshes (spheres, capsules, cylinders).
@@ -88,7 +88,13 @@ OCTA currently includes seven verified subsystems:
 - **Conservative Progress Verification (`verifier.py`):** Evaluates screenshots against step expectations (`ProgressVerifier`, `parse_verification_output`) and enforces a strict anti-hallucination policy: downgrades `"complete"` claims to `"uncertain"` whenever confidence is below threshold (`0.75`), required elements are missing/unconfirmed, or model reasoning expresses ambiguity.
 - **Passive Qt Visual Overlay (`overlay.py`):** Click-through, non-focusable transparent widget (`GuidanceOverlayWidget`, `HighlightSpec`, `ArrowSpec`, `OverlayBounds`) that validates coordinates against screen bounds and renders highlights and directional arrows with `QPainter`. Strictly passive (`WindowTransparentForInput`, `WindowDoesNotAcceptFocus`, `WA_TransparentForMouseEvents`) — never clicks, types, or controls other applications.
 
-> **Component Coupling Note:** Python manages the Godot process, hosts the authenticated localhost WebSocket server, provides the PySide6 system tray and diagnostic UI, and supplies the Phase 4.0 screen capture, consent, LLM verification, and visual overlay modules. End-to-end interactive tutorial loop orchestration is planned for Phase 6.0.
+### 8. Phase 5.0 Voice Interaction (`src/octa/voice`)
+- **Push-to-Talk In-Memory Audio Capture (`audio.py`):** Uses `PySide6.QtMultimedia` (`QAudioSource`, `QAudioFormat`, `QMediaDevices`, `QBuffer`) and standard-library `wave` (`PushToTalkRecorder`, `QtAudioCaptureBackend`, `MockAudioCaptureBackend`, `RecordedAudio`, `TranscriptionResult`, `SynthesizedSpeech`). Requires explicit user initiation (`user_initiated=True`), never records continuously or saves audio to disk by default (`voice_save_audio=False`), explicitly rejects wake-word or continuous recording modes (`ContinuousRecordingForbiddenError`), supports immediate cancel/stop that discards buffered audio in memory, and excludes raw audio bytes and transcripts from `repr`, `str`, and logs.
+- **Injectable Speech-to-Text & Text-to-Speech Providers (`providers.py`):** Runtime-checkable `SpeechToTextProvider`, `TextToSpeechProvider`, and `AudioPlaybackBackend` protocols. Defaults to safe disabled providers (`DisabledSTTProvider`, `DisabledTTSProvider`) so no paid cloud provider is assumed. Includes deterministic mocked providers (`MockSTTProvider`, `MockTTSProvider`, `MockAudioPlaybackBackend`), `PySide6.QtMultimedia` in-memory WAV playback (`QtAudioPlaybackBackend`), and configurable remote HTTPS speech adapters (`RemoteVoiceConfig`, `RemoteHTTPSTTProvider`, `RemoteHTTPTTSProvider`) enforcing HTTPS for remote hosts, opt-in loopback HTTP (`OCTA_VOICE_ALLOW_LOCAL_HTTP=true`), no HTTP redirects (`VoiceNoRedirectHandler`), and test network blocking.
+- **Remote Speech Provider Consent (`consent.py`):** Discloses the sanitized destination endpoint (`scheme://host[:port]/path`) and `[REDACTED]` indicators for any URL credentials, query parameters, or fragments (`VoiceConsentRequest`, `VoiceConsentDecision`, `VoiceConsentDialog`, `VoiceConsentManager`), binds single-use approval internally to the exact raw endpoint URL digest and exact audio/text payload digest before sending microphone audio or text to any remote speech provider, defaults to cancellation, and never logs or exposes credentials, audio bytes, transcripts, or hash fingerprints.
+- **Push-to-Talk Task Pipeline & Desktop UI (`controller.py`, `desktop/window.py`):** Connects spoken requests to `TaskDefinition`, `TaskStep`, `GuidanceInstruction`, and `ProgressVerifier` (`VoiceInteractionController`, `route_spoken_request_to_instruction`), reads step instructions aloud, surfaces a live visible microphone indicator (`Microphone: RECORDING (LIVE...)` vs `INACTIVE`), and provides immediate `Stop / Cancel Voice` controls in `DiagnosticWindow`.
+
+> **Component Coupling Note:** Python manages the Godot process, hosts the authenticated localhost WebSocket server, provides the PySide6 system tray and diagnostic UI, supplies the Phase 4.0 screen capture, consent, LLM verification, and visual overlay modules, and provides the Phase 5.0 push-to-talk voice pipeline. End-to-end interactive tutorial loop orchestration is planned for Phase 6.0.
 
 ---
 
@@ -119,7 +125,7 @@ OCTA is designed around two cooperating processes connected by a local WebSocket
 | AI | OpenAI-compatible HTTP API (`urllib.request`) | Instruction generation, multimodal progress analysis |
 | Screen capture | PySide6 (`QScreen.grabWindow`, `QBuffer`) | User-initiated in-memory screen and region capture |
 | Visual overlay | PySide6 (`QPainter`, click-through `QWidget`) | Passive on-screen highlights and directional arrows |
-| Voice | STT / TTS engines (TBD) | Speech recognition and synthesis |
+| Voice | PySide6 (`QtMultimedia`) + Injectable STT/TTS (`urllib.request` / local) | Push-to-talk microphone capture, speech recognition, and instruction readout |
 
 > All technology choices above are subject to evolution as development progresses.
 
@@ -142,21 +148,22 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 3.0 | Godot WebSocket client and end-to-end bridge | ✅ Complete |
 | 2.5 | PySide6 desktop interface | ✅ Complete |
 | 4.0 | Screen capture & AI integration | ✅ Complete |
-| 5.0 | Voice interaction | ⬜ Planned |
+| 5.0 | Voice interaction (Push-to-Talk) | ✅ Complete |
 | 6.0 | End-to-end tutorial engine | ⬜ Planned |
 
 ---
 
 ## Development Status
 
-- **Current phase:** Phase 4.0 Complete — Windows screen & region capture, task definition schemas, user consent dialog/workflow, isolated OpenAI-compatible LLM adapter, conservative progress verification, and passive Qt visual overlay implemented and verified. Next planned phase is Phase 5.0 (Voice interaction) or Phase 6.0 (End-to-end tutorial engine).
+- **Current phase:** Phase 5.0 Complete — Push-to-talk voice interaction, in-memory microphone capture, injectable STT/TTS provider interfaces, remote speech consent disclosure, instruction readout, visible microphone indicator, and immediate cancel/stop implemented and verified. Next planned phase is Phase 6.0 (End-to-end tutorial engine).
 - **What exists:**
   - Runnable Godot 4.7 project with a 3D robot character, idle animations, four-state state machine, and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
   - PySide6 desktop interface (`src/octa/desktop`) featuring system tray controls (`OctaSystemTray`), companion diagnostic window (`DiagnosticWindow`), high-level coordinator (`OctaApplication`), and lifecycle controller (`DesktopController`).
   - Phase 4.0 Intelligence Layer (`src/octa/intelligence`) with user-initiated in-memory screen/region capture (`ScreenCapturer`), task/step/outcome/result validation (`TaskDefinition`, `ProgressResult`), screen-sharing consent disclosure and cancellation (`ScreenShareConsentDialog`, `ConsentManager`), isolated OpenAI-compatible LLM adapter (`OpenAICompatibleAdapter`), conservative progress verifier (`ProgressVerifier`), and click-through Qt visual overlay (`GuidanceOverlayWidget`).
-  - Full automated test suite: 236 Python tests passing (including 56 Phase 4.0 intelligence/capture/consent/LLM/verifier/overlay/config unit tests, 24 desktop UI/controller unit tests, 4 real-binary end-to-end bridge tests, 5 Godot process lifecycle tests, 19 handoff tests, 22 server tests, and 26 protocol tests) + 13 headless Godot protocol tests.
-- **What does not exist yet:** Voice interaction (STT/TTS), full multi-step interactive tutorial loop orchestration, or standalone installer.
+  - Phase 5.0 Voice Interaction (`src/octa/voice`) with push-to-talk in-memory audio capture (`PushToTalkRecorder`), injectable STT/TTS/playback interfaces (`SpeechToTextProvider`, `TextToSpeechProvider`, `AudioPlaybackBackend`), mocked and remote HTTPS adapters (`MockSTTProvider`, `MockTTSProvider`, `RemoteHTTPSTTProvider`, `RemoteHTTPTTSProvider`), remote voice consent disclosure (`VoiceConsentDialog`, `VoiceConsentManager`), task/instruction pipeline routing (`VoiceInteractionController`), visible microphone status, and immediate cancel/stop.
+  - Full automated test suite: 257 Python tests passing (including 21 Phase 5.0 voice/audio/consent/provider/controller/config unit tests, 56 Phase 4.0 intelligence unit tests, 24 desktop UI/controller unit tests, 4 real-binary end-to-end bridge tests, 5 Godot process lifecycle tests, 19 handoff tests, 22 server tests, and 26 protocol tests) + 13 headless Godot protocol tests.
+- **What does not exist yet:** Wake-word detection (explicitly deferred), full multi-step interactive tutorial loop orchestration, or standalone installer.
 
 ---
 
@@ -263,13 +270,20 @@ OCTA/
 │       │   ├── overlay.py        # Passive click-through Qt overlay for highlights & arrows
 │       │   ├── tasks.py          # TaskDefinition, TaskStep, ExpectedOutcome, ProgressResult
 │       │   └── verifier.py       # Conservative ProgressVerifier & instruction generator
-│       └── process/              # Godot process lifecycle management
-│           ├── __init__.py       # Process module exports
-│           ├── exceptions.py     # Process management exception hierarchy
-│           ├── manager.py        # GodotProcessManager (PySide6 QProcess lifecycle)
-│           ├── state.py          # ProcessState enum
-│           └── validator.py      # Executable and project path validation
-├── tests/                        # Automated test suite (236 Python tests passing)
+│       ├── process/              # Godot process lifecycle management
+│       │   ├── __init__.py       # Process module exports
+│       │   ├── exceptions.py     # Process management exception hierarchy
+│       │   ├── manager.py        # GodotProcessManager (PySide6 QProcess lifecycle)
+│       │   ├── state.py          # ProcessState enum
+│       │   └── validator.py      # Executable and project path validation
+│       └── voice/                # Phase 5.0 push-to-talk voice interaction
+│           ├── __init__.py       # Voice module exports
+│           ├── audio.py          # Push-to-talk audio models, WAV codec & capture
+│           ├── consent.py        # Remote speech consent disclosure & SHA-256 binding
+│           ├── controller.py     # VoiceInteractionController & instruction pipeline routing
+│           ├── exceptions.py     # Voice, microphone, consent, and provider exceptions
+│           └── providers.py      # Injectable STT/TTS protocols, mocks, HTTP providers & catalog
+├── tests/                        # Automated test suite (257 Python tests passing)
 │   ├── conftest.py               # Shared test fixtures & custom markers
 │   ├── integration/              # Real binary integration tests
 │   │   ├── test_end_to_end_bridge.py          # Full Python server and Godot client tests
@@ -292,7 +306,11 @@ OCTA/
 │       ├── test_process_validator.py # Path validation unit tests
 │       ├── test_progress_verifier.py # Conservative progress verification tests
 │       ├── test_screen_capture.py    # User-initiated screen capture & memory/log privacy tests
-│       └── test_tasks.py             # Task, step, outcome, and result schema validation tests
+│       ├── test_tasks.py             # Task, step, outcome, and result schema validation tests
+│       ├── test_voice_audio.py       # Push-to-talk capture, WAV codec & privacy tests
+│       ├── test_voice_consent.py     # Remote speech destination disclosure & consent tests
+│       ├── test_voice_controller.py  # Voice flow, task routing & UI microphone visibility tests
+│       └── test_voice_providers.py   # STT/TTS protocols, HTTPS, redirect & mock provider tests
 ├── .env.example                  # Template for environment variables
 ├── .gitignore                    # Git ignore rules
 ├── CHANGELOG.md                  # Version changelog
