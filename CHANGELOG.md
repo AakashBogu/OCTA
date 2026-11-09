@@ -11,6 +11,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Phase 3.0 — Godot WebSocket Client & End-to-End Bridge (2026-11-09)**
+  - `godot/scripts/ws_protocol.gd` — `OctaProtocol` utility class providing protocol v1 envelope creation, SemVer validation, 65,536-byte size validation, JSON decoding, and typed payload builders (`HELLO`, `PONG`, `SET_STATE_ACK`, `STATE_CHANGED`, `SHUTDOWN_ACK`, `ERROR`).
+  - `godot/scripts/ws_client.gd` — `OctaWsClient` Node implementing the Godot client using `WebSocketPeer` in the normal scene-tree polling loop. Manages connection lifecycle (`CONNECTING`, `CONNECTED`, `AUTHENTICATED`, `CLOSING`, `CLOSED`), automated credential handoff loading, correlated handshake, PING/PONG heartbeat responses, state change signals, and graceful shutdown handshake.
+  - `godot/scripts/main_scene.gd` — Integrated `OctaWsClient` with the 3D robot companion and HUD overlay. Dispatches server `SET_STATE` commands to the robot character, returns correlated `SET_STATE_ACK` and `STATE_CHANGED` events, and notifies the server of autonomous/manual user state changes.
+  - `godot/tests/test_ws_protocol.gd` — Headless Godot test suite with 13 automated tests covering SemVer validation, state checking, envelope framing, roundtrip encode/decode, 64 KiB size boundary enforcement, malformed JSON handling, and handoff loading.
+  - `src/octa/communication/handoff.py` — Safe credential handoff utilities (`prepare_process_environment`, `write_handoff_file`, `read_handoff_file`) providing token passing via child process environment or secure user-restricted temporary file without command-line exposure or secret logging.
+  - `src/octa/process/manager.py` — Added optional `env` dictionary parameter to `GodotProcessManager.start(...)` using `QProcessEnvironment` to safely set child environment variables.
+  - `tests/unit/test_communication_handoff.py` — 19 unit tests validating parameter validation, environment preparation, handoff file creation/deletion, permission restrictions, and manager environment propagation.
+  - `tests/integration/test_end_to_end_bridge.py` — 4 real-binary integration tests verifying full end-to-end handshake, `SET_STATE` roundtrip state transitions, PING/PONG heartbeats, graceful shutdown coordination, file-based handoff with immediate unlinking, and unauthorized token rejection against actual Godot 4.7.2.
 - **Phase 2.4.1 — Protocol Schema & Datatypes**
   - src/octa/communication/messages.py, protocol.py, state.py, and exceptions.py — Added typed protocol v1 envelopes and payloads, strict SemVer compatibility checks, UTF-8 JSON framing with a 64 KiB limit, lifecycle states, and secret-safe authentication exceptions.
   - tests/unit/test_communication_protocol.py — Added 26 tests for payload schemas, envelope validation, message-size boundaries, and protocol compatibility.

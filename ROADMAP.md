@@ -97,14 +97,16 @@
 ### Milestone 2.6 — Documentation & Phase 2 Wrap-up *(planned)*
 - [ ] Complete remaining Phase 2 verification and documentation sync
 
-## Phase 3 — Communication Bridge
+## Phase 3 — Communication Bridge *(complete)*
 
-### Phase 3.0 — Godot Client Integration *(planned)*
+### Phase 3.0 — Godot Client Integration & End-to-End Bridge *(complete)*
 
-- [ ] Implement the Godot WebSocket client in GDScript
-- [ ] Connect the client to the authenticated Python server
-- [ ] Handle connection lifecycle and reconnect behavior
-- [ ] End-to-end test: Python sends a state command and Godot plays the matching animation
+- [x] Implement the Godot WebSocket client in GDScript (`OctaWsClient`, `OctaProtocol` using `WebSocketPeer`)
+- [x] Connect the client to the authenticated Python server on actual loopback address and selected port
+- [x] Safe local handoff of port and token (process environment and secure one-time file) without CLI argument exposure
+- [x] Correlated HELLO/WELCOME handshake, PING/PONG heartbeats, SET_STATE/SET_STATE_ACK/STATE_CHANGED, and SHUTDOWN/SHUTDOWN_ACK
+- [x] Enforce protocol 65,536-byte limit and reject malformed/incompatible messages
+- [x] End-to-end integration tests: Python server controls real Godot character state and coordinates graceful shutdown (4 e2e tests + 13 Godot protocol tests)
 
 ---
 

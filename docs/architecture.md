@@ -305,9 +305,9 @@ When loaded via `AppConfig.load(...)`, values are resolved with the following pr
 | Configuration Infrastructure | ✅ Implemented (Phase 2.2) | `octa.core.config.AppConfig` |
 | Logging Infrastructure | ✅ Implemented (Phase 2.2) | `octa.core.logging.setup_logging` |
 | Godot Process Manager | ✅ Implemented (Phase 2.3) | `octa.process.manager.GodotProcessManager`, `QProcess` lifecycle, path validation |
-| PySide6 Desktop UI / Tray | ⬜ Planned (Phase 2.5) | System tray icon, diagnostic control window |
 | Python Qt WebSocket Server | ✅ Implemented (Phase 2.4.2) | Authenticated single-client protocol v1 server on IPv4 loopback |
-| Godot WebSocket Client | ⬜ Planned (Phase 3.0) | GDScript client and end-to-end bridge |
+| Godot WebSocket Client | ✅ Implemented (Phase 3.0) | GDScript `OctaWsClient` and `OctaProtocol` using `WebSocketPeer`, safe local handoff |
+| PySide6 Desktop UI / Tray | ⬜ Planned (Phase 2.5) | System tray icon, diagnostic control window |
 | AI Pipeline & Screen Capture | ⬜ Planned (Phase 4.0) | Vision analysis, guidance generation |
 | Voice Interaction (STT/TTS) | ⬜ Planned (Phase 5.0) | Speech synthesis and recognition |
 
@@ -439,3 +439,55 @@ The protocol schemas and Python server live under src/octa/communication/. The s
 - The random token is available through the in-memory auth_token property for a future local handoff. It is not emitted in signals or logs. Passing it on a command line is unsafe because local process inspection can reveal arguments; the Godot launch handoff remains to be designed.
 - The server does not launch Godot or create a client. This milestone only implements the server endpoint and protocol session handling.
 - tests/unit/test_communication_server.py exercises loopback binding, fallback, authentication, client limits, protocol direction, correlation, timeouts, and transport size enforcement.
+
+## Phase 3.0 — Implemented Godot WebSocket Client & End-to-End Bridge
+
+The Godot client implementation lives under `godot/scripts/` (`ws_protocol.gd`, `ws_client.gd`, and integration in `main_scene.gd`). It connects the 3D character companion to the Python server across the authenticated protocol v1 bridge.
+
+### Godot Architecture
+
+1. **`OctaProtocol` (`godot/scripts/ws_protocol.gd`):**
+   - Pure utility class for SemVer validation, 65,536-byte framing bounds, envelope formatting, and typed payload builders.
+   - Enforces SemVer 2.0.0 major version 1 matching and UTF-8 JSON message limits.
+   - Generates cryptographically secure 32-character hex message IDs via Godot's `Crypto.new().generate_random_bytes(16).hex_encode()`.
+2. **`OctaWsClient` (`godot/scripts/ws_client.gd`):**
+   - Scene-tree `Node` utilizing Godot 4's `WebSocketPeer` in the standard non-blocking `_process(delta)` polling loop.
+   - Manages connection lifecycle (`CONNECTING`, `CONNECTED`, `AUTHENTICATED`, `CLOSING`, `CLOSED`).
+   - Initiates handshake via `HELLO` upon socket connection and verifies correlated `WELCOME`.
+   - Replies to server `PING` with matching `PONG` correlated to the `PING` `message_id`.
+   - Emits signals for `state_change_requested`, `shutdown_requested`, `error_received`, and `connection_state_changed`.
+3. **Character & Scene Integration (`godot/scripts/main_scene.gd`):**
+   - Connects `OctaWsClient` to the 3D `RobotCharacter` and HUD overlay.
+   - Dispatches incoming `SET_STATE` commands to the robot character, returns correlated `SET_STATE_ACK` and `STATE_CHANGED` events.
+   - Notifies server of autonomous or manual user state changes made via the HUD or keyboard shortcuts.
+   - Handles `SHUTDOWN` requests by sending `SHUTDOWN_ACK`, flushing the socket, and cleanly terminating the process.
+
+### Safe Local Credential Handoff (`src/octa/communication/handoff.py`)
+
+Passing authentication credentials in command-line arguments on Windows exposes secrets through:
+- Task Manager and Sysinternals Process Explorer command-line columns.
+- Windows Event Log: Security Audit Event 4688 (Process Creation with Command Line Logging).
+- Local unprivileged process query tools (`wmic process get CommandLine`).
+
+To prevent secret exposure, OCTA implements two secure in-memory and filesystem handoff paths:
+
+1. **Process Environment Block (`prepare_process_environment`):**
+   - The primary handoff mechanism.
+   - Python sets `OCTA_WS_HOST`, `OCTA_WS_PORT`, and `OCTA_AUTH_TOKEN` directly on the child process using `QProcess.setProcessEnvironment(env)`.
+   - On Windows, the environment block is passed directly to `CreateProcessW` in the child's virtual address space (PEB) and is inaccessible to unprivileged other users.
+   - Environment variables are never logged and do not appear in command-line logs.
+2. **Secure One-Time Temporary File (`write_handoff_file`, `read_handoff_file`):**
+   - Created in the user's private `%TEMP%` directory with restricted file permissions (`0o600`).
+   - Pointed to by `OCTA_HANDOFF_FILE`.
+   - Godot reads the file once on initialization and immediately unlinks it from disk (`DirAccess.remove_absolute(...)`), minimizing lifetime on disk to milliseconds.
+
+### Validation and Test Coverage
+
+1. **Godot Protocol Test Suite (`godot/tests/test_ws_protocol.gd`):**
+   - 13 headless tests covering SemVer validation, state checking, envelope generation, UTF-8 roundtrip encode/decode, 64 KiB boundary enforcement, malformed JSON handling, and handoff loading.
+2. **Python Handoff Tests (`tests/unit/test_communication_handoff.py`):**
+   - 19 unit tests validating parameter validation, environment preparation, handoff file creation/deletion, permission restrictions, and manager environment propagation.
+3. **End-to-End Integration Tests (`tests/integration/test_end_to_end_bridge.py`):**
+   - 4 real-binary tests against installed Godot 4.7.2 in headless mode verifying the full handshake, `SET_STATE` roundtrip state transitions, PING/PONG heartbeats, graceful shutdown coordination, file-based handoff, and unauthorized token rejection.
+4. **Total Test Suite:**
+   - 156 Python automated tests + 13 Godot protocol tests passing with zero failures.

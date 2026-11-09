@@ -290,3 +290,50 @@ Implemented the authenticated, loopback-only Python WebSocket server and session
 ### Next Step
 
 - Implement the Godot WebSocket client and a safe local token handoff in Phase 3.
+
+---
+
+## Task: Phase 3.0 — Godot WebSocket Client & End-to-End Bridge
+
+**Date:** 2026-11-09
+**Phase:** 3.0
+
+### Summary
+
+Designed and implemented the Godot WebSocket client and end-to-end integration with the Python WebSocket server. Utilized Godot's `WebSocketPeer` in the scene-tree polling loop to implement protocol v1 envelope framing, SemVer validation, 65,536-byte size boundary enforcement, correlated HELLO/WELCOME handshake, PING/PONG heartbeats, SET_STATE/SET_STATE_ACK/STATE_CHANGED character updates, and graceful SHUTDOWN coordination. Implemented a safe local credential handoff mechanism (`src/octa/communication/handoff.py`) via child process environment blocks (`QProcessEnvironment`) and secure user-restricted temporary files without command-line argument exposure or secret logging. Verified all behaviors with 13 headless Godot tests, 19 handoff unit tests, and 4 real-binary end-to-end integration tests.
+
+### Files Created
+
+- `godot/scripts/ws_protocol.gd` — `OctaProtocol` utility class providing protocol v1 envelope creation, SemVer validation, 65,536-byte size validation, JSON decoding, and typed payload builders.
+- `godot/scripts/ws_client.gd` — `OctaWsClient` Node implementing the Godot client using `WebSocketPeer` in the normal scene-tree polling loop. Manages connection lifecycle, automated credential handoff loading, correlated handshake, PING/PONG heartbeats, state change signals, and graceful shutdown.
+- `godot/tests/test_ws_protocol.gd` — Headless Godot test suite with 13 automated tests covering SemVer validation, state checking, envelope framing, roundtrip encode/decode, 64 KiB boundary enforcement, malformed JSON handling, and handoff loading.
+- `src/octa/communication/handoff.py` — Safe credential handoff utilities (`prepare_process_environment`, `write_handoff_file`, `read_handoff_file`) providing token passing via child process environment or secure user-restricted temporary file without command-line exposure or secret logging.
+- `tests/unit/test_communication_handoff.py` — 19 unit tests validating parameter validation, environment preparation, handoff file creation/deletion, permission restrictions, and manager environment propagation.
+- `tests/integration/test_end_to_end_bridge.py` — 4 real-binary integration tests verifying full end-to-end handshake, `SET_STATE` roundtrip state transitions, PING/PONG heartbeats, graceful shutdown coordination, file-based handoff with immediate unlinking, and unauthorized token rejection against actual Godot 4.7.2.
+
+### Files Modified
+
+- `godot/scripts/main_scene.gd` — Integrated `OctaWsClient` with the 3D robot companion and HUD overlay. Dispatches server `SET_STATE` commands to the robot character, returns correlated `SET_STATE_ACK` and `STATE_CHANGED` events, and notifies the server of autonomous/manual user state changes.
+- `src/octa/communication/__init__.py` — Exported safe handoff functions and environment constants.
+- `src/octa/process/manager.py` — Added optional `env` dictionary parameter to `GodotProcessManager.start(...)` using `QProcessEnvironment` to safely set child environment variables without command-line exposure.
+- `README.md` — Updated project summary, status, test count (156 Python + 13 Godot), roadmap, and project tree.
+- `ROADMAP.md` — Marked Phase 3.0 completed with all sub-tasks checked.
+- `CHANGELOG.md` — Documented Phase 3.0 implementation under `[Unreleased]`.
+- `docs/architecture.md` — Added detailed architecture documentation for the Godot client, safe local credential handoff, message flows, and test coverage.
+
+### Validation
+
+- **Godot Protocol Test Suite:** Ran `godot --headless --path godot -s res://tests/test_ws_protocol.gd`, all 13 tests passed with 0 failures.
+- **Python Full Test Suite:** Ran `pytest -v`, all 156 tests passed in 8.39s (including 4 real-binary e2e tests, 5 Godot process integration tests, 19 handoff tests, 22 server tests, and 26 protocol tests).
+- **Ruff Linter:** Ran `ruff check .`, all checks passed with 0 errors.
+- **Ruff Formatter:** Ran `ruff format --check .`, all 34 files properly formatted.
+- **Git Diff Check:** Ran `git diff --check`, 0 whitespace errors.
+- **Git Staging Safety:** Verified no Phase 3 changes were staged or committed; left for review.
+
+### Blockers
+
+- None.
+
+### Next Step
+
+- Proceed to Phase 2.5: PySide6 Desktop Interface (system tray icon and diagnostic monitor window).

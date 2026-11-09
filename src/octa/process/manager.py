@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QProcess, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal, Slot
 
 from octa.process.exceptions import (
     GodotNotFoundError,
@@ -133,6 +133,7 @@ class GodotProcessManager(QObject):
         project_dir: str | Path | None = None,
         headless: bool = False,
         extra_args: list[str] | None = None,
+        env: dict[str, str] | None = None,
     ) -> None:
         """Asynchronously launch the Godot character runtime process.
 
@@ -141,6 +142,8 @@ class GodotProcessManager(QObject):
             project_dir: Path to Godot project directory (defaults to configured path).
             headless: If True, appends '--headless' argument (useful for testing).
             extra_args: Optional additional command-line arguments to pass to Godot.
+            env: Optional dictionary of environment variables to set on the child process.
+                Used for safe credential and configuration handoff without command-line exposure.
 
         Raises:
             ProcessAlreadyRunningError: If a process is already STARTING or RUNNING.
@@ -170,6 +173,12 @@ class GodotProcessManager(QObject):
         self._force_killed = False
         self._cleaning_up = False
         self._generation += 1
+
+        if env is not None:
+            process_env = QProcessEnvironment.systemEnvironment()
+            for k, v in env.items():
+                process_env.insert(k, v)
+            self._process.setProcessEnvironment(process_env)
 
         # Explicit argument list (prevents command injection and quoting bugs on Windows)
         arguments = ["--path", str(valid_proj)]

@@ -12,6 +12,16 @@ from octa.communication.exceptions import (
     ProtocolError,
     UnsupportedProtocolVersionError,
 )
+from octa.communication.handoff import (
+    DEFAULT_HOST,
+    ENV_AUTH_TOKEN,
+    ENV_HANDOFF_FILE,
+    ENV_WS_HOST,
+    ENV_WS_PORT,
+    prepare_process_environment,
+    read_handoff_file,
+    write_handoff_file,
+)
 from octa.communication.messages import (
     VALID_MESSAGE_TYPES,
     VALID_ROBOT_STATES,
@@ -56,6 +66,11 @@ __all__ = [
     "CommunicationError",
     "ConnectionState",
     "ConnectionTimeoutError",
+    "DEFAULT_HOST",
+    "ENV_AUTH_TOKEN",
+    "ENV_HANDOFF_FILE",
+    "ENV_WS_HOST",
+    "ENV_WS_PORT",
     "Envelope",
     "ErrorPayload",
     "HelloPayload",
@@ -80,4 +95,7 @@ __all__ = [
     "is_valid_message_type",
     "is_valid_robot_state",
     "is_version_compatible",
+    "prepare_process_environment",
+    "read_handoff_file",
+    "write_handoff_file",
 ]
