@@ -149,7 +149,7 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 2.5 | PySide6 desktop interface | ✅ Complete |
 | 4.0 | Screen capture & AI integration | ✅ Complete |
 | 5.0 | Voice interaction (Push-to-Talk) | ✅ Complete |
-| 6.0 | End-to-end tutorial engine | ⬜ Planned |
+| 6.0 | End-to-end tutorial engine & packaging | ✅ Complete |
 
 ---
 
@@ -163,8 +163,8 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
   - Phase 4.0 Intelligence Layer (`src/octa/intelligence`) with user-initiated in-memory screen/region capture (`ScreenCapturer`), task/step/outcome/result validation (`TaskDefinition`, `ProgressResult`), screen-sharing consent disclosure and cancellation (`ScreenShareConsentDialog`, `ConsentManager`), isolated OpenAI-compatible LLM adapter (`OpenAICompatibleAdapter`), conservative progress verifier (`ProgressVerifier`), and click-through Qt visual overlay (`GuidanceOverlayWidget`).
   - Phase 5.0 Voice Interaction (`src/octa/voice`) with push-to-talk in-memory audio capture (`PushToTalkRecorder`), injectable STT/TTS/playback interfaces (`SpeechToTextProvider`, `TextToSpeechProvider`, `AudioPlaybackBackend`), mocked and remote HTTPS adapters (`MockSTTProvider`, `MockTTSProvider`, `RemoteHTTPSTTProvider`, `RemoteHTTPTTSProvider`), remote voice consent disclosure (`VoiceConsentDialog`, `VoiceConsentManager`), task/instruction pipeline routing (`VoiceInteractionController`), visible microphone status, and immediate cancel/stop.
   - Phase 6.0 Tutorial Engine (`src/octa/tutorials`) with `TutorialEngine` orchestrating tutorial selection, text-based step navigation and manual completion, user-initiated capture with single-use consent and background AI verification, overlay and voice synchronization, built-in sample tutorials (OCTA welcome, Windows Notepad, Windows File Explorer), and structured user testing/feedback collection (`FeedbackCollector`, `TutorialFeedbackDialog`, `TutorialSessionMetrics`).
-  - Full automated test suite: 283 Python tests passing (including 26 Phase 6.0 tutorial engine, catalog, feedback, and performance tests, 21 Phase 5.0 voice/audio/consent/provider/controller/config unit tests, 56 Phase 4.0 intelligence unit tests, 24 desktop UI/controller unit tests, 4 real-binary end-to-end bridge tests, 5 Godot process lifecycle tests, 19 handoff tests, 22 server tests, and 26 protocol tests) + 13 headless Godot protocol tests.
-- **What does not exist yet:** Wake-word detection (explicitly deferred), full multi-step interactive tutorial loop orchestration, or standalone installer.
+  - Full automated test suite: 288 Python tests passing (including 31 Phase 6.0 tutorial engine, catalog, feedback, performance, and packaging tests, 21 Phase 5.0 voice/audio/consent/provider/controller/config unit tests, 56 Phase 4.0 intelligence unit tests, 24 desktop UI/controller unit tests, 4 real-binary end-to-end bridge tests, 5 Godot process lifecycle tests, 19 handoff tests, 22 server tests, and 26 protocol tests) + 13 headless Godot protocol tests.
+- **What does not exist yet:** Wake-word detection (explicitly deferred) and Phase 7.0 advanced 3D character animations/transparent desktop overlay.
 
 ---
 
@@ -204,6 +204,23 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
    ```powershell
    pytest
    ```
+
+### Building the Windows Standalone Distribution
+
+To build a standalone, portable Windows distribution bundle (`dist/OCTA/` and `dist/OCTA-v0.1.0-windows-x64.zip`) without requiring a Python installation on the target machine:
+
+```powershell
+python scripts/build_windows_dist.py --clean --zip
+```
+
+This automated build script:
+1. Compiles `src/octa` via PyInstaller using `octa.spec` into a high-performance directory bundle.
+2. Produces dual executables:
+   - `dist/OCTA/OCTA.exe`: Windowed desktop GUI application (no flashing terminal window).
+   - `dist/OCTA/octa-cli.exe`: Console CLI application for automation, testing, and `--help` / `--version`.
+3. Bundles required Qt runtime plugins (`qwindows.dll`, `tls`, `multimedia`) and Godot 4 companion assets (`godot/project.godot`, `scenes/`, `scripts/`).
+4. Performs a secret-hygiene audit to guarantee `.env`, API keys, certificates, logs, and user telemetry are never included in the package.
+5. Executes automated runtime smoke tests on the built binaries before generating the final portable ZIP archive.
 
 ### Running the Godot Character Prototype
 

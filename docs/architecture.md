@@ -703,3 +703,47 @@ Supported `OCTA_VOICE_STT_PROVIDER` and `OCTA_VOICE_TTS_PROVIDER` configuration 
 | `remote_https_openai_compatible` | `"remote_http"` | ✅ Yes | STT & TTS | Outbound HTTPS (`https://`) | None (`urllib.request` stdlib) | Requires `OCTA_VOICE_*_PROVIDER=remote_http`, `https://` endpoint, `OCTA_VOICE_*_API_KEY`, and explicit per-request user consent. Plays WAV via `QtAudioPlaybackBackend`. |
 | `faster_whisper_local` | `None` | ⬜ Candidate | STT | None (offline) | `faster-whisper` + local model weights | Not bundled; would require adding `faster-whisper` and local CTranslate2 Whisper weights. |
 | `vosk_local` | `None` | ⬜ Candidate | STT | None (offline) | `vosk` + local acoustic model | Not bundled; would require adding `vosk` and a local Vosk model directory. |
+
+---
+
+## Phase 6 — Distribution & Packaging Architecture
+
+### Implemented Distribution Model
+
+OCTA is packaged as a standalone, portable Windows application bundle using PyInstaller 6.x and a checked-in specification file (`octa.spec`) automated by `scripts/build_windows_dist.py`.
+
+```
+dist/OCTA/
+├── OCTA.exe                    ← Windowed GUI executable (subsystem: WINDOWS_GUI, no terminal window)
+├── octa-cli.exe                ← Console CLI executable (subsystem: WINDOWS_CUI, prints stdout to terminal)
+├── godot/                      ← Bundled Godot 4 companion runtime project
+│   ├── project.godot
+│   ├── icon.svg
+│   ├── scenes/
+│   └── scripts/
+└── _internal/                  ← PyInstaller shared runtime directory
+    ├── PySide6/                ← PySide6 libraries & plugins (platforms/qwindows.dll, tls, multimedia)
+    ├── python312.dll           ← Python 3.12 embedded runtime
+    └── [dependency DLLs]       ← psutil, Shiboken, and C-runtime libraries
+```
+
+### Key Packaging Architectural Decisions
+
+1. **Directory Bundle (`--onedir`) vs Single Executable (`--onefile`)**:
+   - Single-file packaging extracts the full 100+ MB Qt runtime into a temporary `%TEMP%/_MEIxxxx` directory on every launch, resulting in slow startup times (3–8 seconds), disk thrashing, and elevated false-positive virus detections.
+   - Directory bundle mode starts instantly (<0.5 seconds), enables direct access to the Godot project assets, and is effortlessly distributed as a portable ZIP archive (`OCTA-v0.1.0-windows-x64.zip`).
+
+2. **Dual Entry Points (`OCTA.exe` and `octa-cli.exe`)**:
+   - Windows executable subsystems determine whether a console window is allocated by the OS before Python even starts.
+   - Compiling both executables from the same codebase in one PyInstaller spec provides native desktop behavior:
+     - `OCTA.exe` runs silently in the system tray and desktop monitor without an unwanted black CMD window.
+     - `octa-cli.exe` allows command-line flags (`--version`, `--help`, `--no-auto-start`, `--headless-godot`, `--config <path>`) with output rendered directly in the calling terminal.
+
+3. **Frozen Path Resolution (`AppConfig`)**:
+   - In development, `godot_project_dir` resolves relative to the current working directory.
+   - In a frozen bundle, `AppConfig.__post_init__` checks `sys.frozen` and `sys._MEIPASS` (or `sys.executable.parent`), automatically binding the bundled Godot project directory regardless of which working directory launched the application.
+
+4. **Secret Hygiene & Security Assurance**:
+   - The build process audits the generated bundle against forbidden files (`.env`, `.env.*`, `*.key`, `*.pem`, `tutorial_feedback.json`, `tutorial_session_metrics.json`, `*.log`).
+   - Development tools and test frameworks (`pytest`, `ruff`) are explicitly excluded.
+   - User data and logs are strictly stored in `%LOCALAPPDATA%\OCTA`, keeping the application bundle read-only and suitable for installation in protected directories.

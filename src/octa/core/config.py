@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -319,6 +320,16 @@ class AppConfig:
 
         if not isinstance(self.godot_project_dir, Path):
             object.__setattr__(self, "godot_project_dir", Path(self.godot_project_dir))
+
+        if not self.godot_project_dir.is_absolute() and getattr(sys, "frozen", False):
+            base_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+            bundled_candidate = base_dir / self.godot_project_dir
+            if bundled_candidate.exists():
+                object.__setattr__(self, "godot_project_dir", bundled_candidate)
+            else:
+                exe_candidate = Path(sys.executable).parent / self.godot_project_dir
+                if exe_candidate.exists():
+                    object.__setattr__(self, "godot_project_dir", exe_candidate)
 
         if self.godot_executable is not None and not isinstance(self.godot_executable, Path):
             object.__setattr__(self, "godot_executable", Path(self.godot_executable))

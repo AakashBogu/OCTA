@@ -613,3 +613,53 @@ Benchmarked and resolved concrete bottlenecks in the tutorial engine flow focusi
 
 ### Next Step
 - Phase 6.0 installer and distribution packaging (final roadmap item of Phase 6.0).
+
+---
+
+## Task: Phase 6.0 — Installer / Distribution Packaging
+**Date:** 2026-11-11
+**Phase:** 6.0
+
+### Summary
+Designed, implemented, verified, and smoke-tested a standalone Windows distribution packaging workflow for OCTA. Created a PyInstaller specification (`octa.spec`) and reproducible build script (`scripts/build_windows_dist.py`) generating a standalone directory bundle (`dist/OCTA/`) and portable ZIP archive (`dist/OCTA-v0.1.0-windows-x64.zip`). Configured dual entry points (`OCTA.exe` windowed GUI without flashing terminal windows, and `octa-cli.exe` console CLI), bundled Godot companion project assets and Qt platform plugins, verified secret hygiene to prevent any `.env`, credential, or telemetry leakage, and added automated packaging unit and smoke tests. With this milestone, Phase 6.0 is complete.
+
+### Architecture Tradeoffs
+- **Packaging Approach**: Evaluated PyInstaller vs. Nuitka vs. cx_Freeze vs. MSI/Inno Setup installers. Chose PyInstaller directory bundle (`--onedir`) as the core distribution format:
+  - *Fast Startup*: Unlike single-file (`--onefile`) which must decompress dozens of megabytes into `%TEMP%` on every startup, directory bundles launch instantly without disk thrashing or antivirus heuristics issues.
+  - *Asset Integration*: Seamlessly bundles the companion Godot project (`godot/project.godot`, `scenes/`, `scripts/`) alongside the Python executable.
+  - *Clean Dual Executables*: Produces `OCTA.exe` (`console=False` for quiet tray/GUI use) and `octa-cli.exe` (`console=True` for automation, CLI flags, and testing) sharing the exact same `_internal` DLLs and libraries.
+  - *Portability*: Can be zipped into a self-contained portable release archive or wrapped in an Inno Setup installer installer without modifying the underlying application code.
+- **Secret Hygiene**: Explicitly audited and excluded `.env`, `.env.*`, `*.key`, `*.pem`, `tutorial_feedback.json`, `tutorial_session_metrics.json`, and `*.log` from the distribution bundle.
+
+### Files Changed
+- `octa.spec` — Created. PyInstaller specification with dual GUI/CLI targets, PySide6 plugins, Godot assets, and development tool exclusions.
+- `scripts/build_windows_dist.py` — Created. Automated build script with pre-flight checks, clean builds, asset auditing, secret hygiene auditing, smoke testing, and ZIP archiving.
+- `src/octa/core/config.py` — Added frozen execution awareness (`sys.frozen`, `sys._MEIPASS`) for bundled Godot project directory resolution.
+- `pyproject.toml` — Added `pyinstaller>=6.5.0` to `dev` dependencies.
+- `tests/unit/test_packaging.py` — Created. 5 unit tests for spec structure, secret hygiene auditor, asset auditor, and frozen bundle resolution.
+- `ROADMAP.md` — Marked Phase 6.0 and all its sub-tasks complete.
+- `README.md` — Updated status to Phase 6.0 Complete, updated test count to 288, and added packaging build instructions.
+- `CHANGELOG.md` — Added distribution packaging entry under `[Unreleased]`.
+- `docs/PROGRESS.md` — Appended this progress entry.
+- `docs/architecture.md` — Documented the Windows distribution packaging architecture and asset layout.
+
+### Validation
+- **Packaging Build & Verification**: Ran `python scripts/build_windows_dist.py --clean --zip`
+  - *Asset Audit*: Found all required executables (`OCTA.exe`, `octa-cli.exe`), Qt plugins (`qwindows.dll`), and Godot assets.
+  - *Secret Hygiene Audit*: Passed with 0 credentials, `.env` files, or user logs.
+  - *Smoke Tests*:
+    - `octa-cli.exe --version` returned code 0 with `octa 0.1.0`.
+    - `octa-cli.exe --help` returned code 0 with command line options.
+    - `OCTA.exe --no-auto-start` launched and terminated cleanly.
+  - *Portable Archive*: Created `dist/OCTA-v0.1.0-windows-x64.zip` (56.9 MB).
+- **Packaging Unit Tests**: Ran `pytest tests/unit/test_packaging.py -v`, 5 passed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`, all 288 tests passed.
+- **Ruff Linter**: Ran `ruff check src tests scripts`, all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`, all 70 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`, 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Phase 7.0 — Advanced Godot character (higher quality 3D model, transparent borderless window, animations).
