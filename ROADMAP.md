@@ -156,14 +156,14 @@
 
 ---
 
-## Phase 7 — Advanced Character *(planned)*
+## Phase 7 — Advanced Character *(in progress)*
 
-### Phase 7.0 — Enhanced Godot Character
+### Phase 7.0 — Enhanced Godot Character *(complete)*
 
-- [ ] Build transparent borderless window for desktop overlay
-- [ ] Create or integrate a higher-quality 3D character model
-- [ ] Implement advanced animations (talking, pointing, celebrating)
-- [ ] Add AnimationTree-based state transitions
+- [x] Build transparent borderless window for desktop overlay (`godot/project.godot`, `godot/scripts/main_scene.gd`: viewport transparency, borderless, always-on-top, default bottom-right usable desktop positioning, left-click mouse dragging)
+- [x] Create or integrate a higher-quality 3D character model (`godot/scripts/robot_character.gd`: articulated joints, torso chassis, chest core, neck, head with dark curved visor, digital eye indicators, mouth grille LED bar, dual antennae, articulated arms with pointer finger, thruster ring, ground drop shadow; 100% first-party procedural geometry and materials under MIT license documented in `godot/ASSETS_LICENSE.md`)
+- [x] Implement advanced animations (talking, pointing, celebrating) (`godot/scripts/robot_character.gd`: `idle`, `listening`, `thinking`, `talking`, `pointing`, and `celebrating` tracks with speech cadence, outstretched pointing, and victory bouncing)
+- [x] Add AnimationTree-based state transitions (`godot/scripts/robot_character.gd`: `AnimationTree` with `AnimationNodeStateMachine`, smooth cross-fade transitions, `AnimationNodeStateMachinePlayback`, and backwards-compatible state mapping)
 
 ---
 

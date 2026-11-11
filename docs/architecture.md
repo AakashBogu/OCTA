@@ -173,64 +173,76 @@ These decisions are deferred to future phases:
 
 ---
 
-## Phase 1 — Implemented Scene Architecture
+## Godot Character & Desktop Window Architecture (Phase 7.0)
 
-The following describes the **actual** Godot project structure as implemented in Phase 1. This is a proof-of-concept prototype using placeholder geometry.
+The following describes the enhanced Godot companion architecture implemented in Phase 7.0.
 
 ### Scene Tree
 
 ```
-Main (Node3D)                          ← main_scene.gd
-├── Camera3D                           ← Positioned at (0, 0.8, 2.2), FOV 40°, looking at robot
-├── DirectionalLight3D (key)           ← Warm white, shadow enabled, -40°/30° rotation
-├── DirectionalLight3D (fill)          ← Cool blue-white, no shadow, -20°/-60° rotation
-├── WorldEnvironment                   ← Dark blue-grey background, filmic tonemapping
-├── MeshInstance3D (floor)             ← PlaneMesh 6×6, dark matte surface
-├── RobotCharacter (Node3D)            ← robot_character.gd (class_name RobotCharacter)
-│   ├── MeshInstance3D (body)          ← CapsuleMesh, soft blue
-│   ├── Node3D (head_pivot)            ← Rotation pivot for head sway
-│   │   ├── MeshInstance3D (head)      ← SphereMesh, lighter blue
-│   │   ├── MeshInstance3D (left_eye)  ← SphereMesh, emissive, changes colour per state
-│   │   ├── MeshInstance3D (right_eye) ← SphereMesh, emissive, changes colour per state
-│   │   ├── MeshInstance3D (antenna)   ← CylinderMesh, silver
-│   │   └── MeshInstance3D (ant. tip)  ← SphereMesh, red, emissive pulse per state
-│   ├── MeshInstance3D (left_arm)      ← CapsuleMesh, darker blue
-│   ├── MeshInstance3D (right_arm)     ← CapsuleMesh, darker blue
-│   ├── MeshInstance3D (left_leg)      ← CylinderMesh, darker blue
-│   └── MeshInstance3D (right_leg)     ← CylinderMesh, darker blue
+Main (Node3D)                                 ← main_scene.gd
+├── Camera3D                                  ← Positioned at (0, 0.72, 1.95), FOV 38°, looking at robot
+├── DirectionalLight3D (key)                  ← Warm white, shadow enabled, -35°/30° rotation
+├── DirectionalLight3D (fill)                 ← Cool blue-white, no shadow, -20°/-55° rotation
+├── DirectionalLight3D (rim)                  ← Subtle rim highlight, 30°/150° rotation
+├── WorldEnvironment                          ← Transparent background (Color(0,0,0,0)), filmic tonemapping
+├── RobotCharacter (Node3D)                   ← robot_character.gd (class_name RobotCharacter)
+│   ├── BodyPivot (Node3D)                    ← Pivot for root bobbing and celebratory bouncing
+│   │   ├── Chassis (MeshInstance3D)          ← Pearlescent metallic capsule torso
+│   │   ├── ChestCore (MeshInstance3D)        ← Status reactor cylinder, pulsing emission
+│   │   ├── Neck (MeshInstance3D)             ← Graphite articulation joint
+│   │   ├── HeadPivot (Node3D)                ← Expressive rotation pivot (pitch/yaw/roll)
+│   │   │   ├── Head (MeshInstance3D)         ← Sleek chassis head casing
+│   │   │   ├── Visor (MeshInstance3D)        ← Dark obsidian glossy curved face visor
+│   │   │   ├── LeftEye (MeshInstance3D)      ← Digital LED eye disc with state-dependent glow
+│   │   │   ├── RightEye (MeshInstance3D)     ← Digital LED eye disc with state-dependent glow
+│   │   │   ├── MouthGrille (MeshInstance3D)  ← Audio waveform / smile LED bar, pulses while talking
+│   │   │   ├── LeftAntennaPivot (Node3D)     ← Angled stalk with glowing status orb tip
+│   │   │   └── RightAntennaPivot (Node3D)    ← Angled stalk with glowing status orb tip
+│   │   ├── LeftArmPivot (Node3D)             ← Shoulder ball, upper arm, forearm pivot, hand
+│   │   ├── RightArmPivot (Node3D)            ← Shoulder ball, upper arm, forearm pivot, hand
+│   │   │   └── RightPointerFinger (Mesh)     ← Outstretched pointer finger for screen guidance
+│   │   └── ThrusterRing (MeshInstance3D)     ← Anti-gravity ring with subtle cyan thruster glow
+│   ├── GroundShadow (MeshInstance3D)         ← Soft alpha-blended transparent disc contact shadow
+│   ├── AnimPlayer (AnimationPlayer)          ← Library of 6 clips (idle, listen, think, talk, point, celebrate)
+│   └── AnimTree (AnimationTree)              ← AnimationNodeStateMachine with smooth 0.22s crossfades
+├── WsClient (Node)                           ← ws_client.gd (authenticated WebSocket connection)
 └── CanvasLayer (HUD, layer 10)
-    ├── Label (state display)          ← Top-left, shows current state name
-    └── Label (keyboard hints)         ← Bottom-left, shows control instructions
+    ├── Label (state display)                 ← Top-left, shows current state name
+    ├── Label (connection display)            ← Below state, shows WebSocket connection status
+    └── Label (keyboard hints)                ← Bottom-left, shows state & drag instructions
 ```
 
-### State Machine
+### State Machine & Animation Architecture
 
-The `RobotCharacter` uses a simple enum-based state machine:
+The `RobotCharacter` combines an `AnimationTree` state machine for procedural skeleton transitions with real-time shader emission modulation:
 
-| State | Eye Colour | Eye Emission | Antenna Tip | Visual Cue |
+| State | Eye / Core Glow | Antenna Tip | Mouth Waveform | Skeletal Animation |
 |---|---|---|---|---|
-| IDLE | Near-white | 0.4 | Off | Neutral, calm |
-| LISTENING | Soft green | 0.8 | Slow pulse | Attentive |
-| THINKING | Amber | 0.6 | Fast pulse | Processing |
-| SUCCESS | Bright green | 1.2 | Solid glow | Celebration |
+| IDLE | Bright cyan (0.9 energy) | Steady gentle pulse (0.3) | Off / minimal | Gentle vertical bobbing, subtle head sway, balanced arms |
+| LISTENING | Emerald green (1.4 energy) | Rhythmic green pulse (0.8) | Low glow | Attentive forward-tilted head, receptive arm stance |
+| THINKING | Warm amber (1.1 energy) | Rapid amber pulse (1.2) | Low glow | Quizzical head tilt, right hand touching chin/visor |
+| TALKING | Luminous cyan (1.2 energy) | Speech sync pulse (0.5) | Rapid speech flicker (0.6–2.2) | Rhythmic speech nodding, alternating conversational gestures |
+| POINTING | High-contrast cyan (1.5) | Steady glow (0.8) | Moderate glow | Right arm extended forward-upward with pointer finger |
+| CELEBRATING / SUCCESS | Joyous emerald (1.8 energy) | Bright celebratory flash (1.6) | High burst | Arms raised overhead in victory (\o/), energetic jumping bounces |
 
-State transitions use `lerpf` / `Color.lerp` for smooth visual blending.
+### Desktop Window Integration
+
+- **Per-Pixel Transparency:** Configured via `project.godot` (`window/size/transparent=true`, `window/per_pixel_transparency/allowed=true`, `rendering/viewport/transparent_background=true`) and DisplayServer window flags (`WINDOW_FLAG_TRANSPARENT`, `WINDOW_FLAG_BORDERLESS`, `WINDOW_FLAG_ALWAYS_ON_TOP`).
+- **Screen Positioning:** Automatically docks to the bottom-right corner of the primary screen usable area (`DisplayServer.screen_get_usable_rect()`).
+- **Left-Click Dragging:** Left mouse button dragging anywhere on the character window dynamically translates the window across the user's desktop.
+- **Ground Contact Shadow:** Rather than an opaque floor plane, a soft alpha-blended disc shadow (`StandardMaterial3D.TRANSPARENCY_ALPHA`) visually grounds the character while leaving the rest of the desktop visible.
 
 ### Scripts
 
 | Script | Class | Responsibility |
 |---|---|---|
-| `scripts/robot_character.gd` | `RobotCharacter` | Builds robot mesh hierarchy, runs idle animation, manages state machine and visual transitions |
-| `scripts/main_scene.gd` | *(anonymous)* | Creates camera, lights, environment, floor, robot instance, and HUD; handles keyboard input for state switching |
+| `scripts/robot_character.gd` | `RobotCharacter` | Builds articulated robot hierarchy, defines 6 animations in `AnimationPlayer`, manages `AnimationTree` state machine with crossfades, updates dynamic emissions |
+| `scripts/main_scene.gd` | *(anonymous)* | Configures desktop transparency, window positioning, mouse dragging, 3-point lighting, environment, robot instance, HUD, and WebSocket orchestration |
 
-### Design Decisions
+### Asset Provenance & Licensing
 
-- **Procedural construction:** All geometry is created in `_ready()` via code, not in the scene editor. This keeps the `.tscn` file minimal and the geometry easy to adjust parametrically.
-- **No AnimationPlayer:** Idle motion uses `_process()` with `sin()` oscillators. This avoids the complexity of animation tracks for what is essentially placeholder geometry.
-- **State via property setter:** The `current_state` property uses a setter to emit `state_changed` and reset `_state_time`, keeping the API simple.
-- **GL Compatibility renderer:** Chosen for broad GPU compatibility in a prototype. Can be upgraded later.
-
-
+All 3D character models, materials, animations, and scenes are 100% procedural first-party assets created natively in GDScript for OCTA under the MIT License. No third-party proprietary meshes, textures, or audio are required. Full details are recorded in `godot/ASSETS_LICENSE.md`.
 ---
 
 ## Phase 2 — Implemented Python Architecture (Milestones 2.1 & 2.2)
@@ -319,7 +331,7 @@ When loaded via `AppConfig.load(...)`, values are resolved with the following pr
 
 | Component | Status | Implementation Details |
 |---|---|---|
-| Godot Character Scene | ✅ Implemented (Phase 1) | `godot/` 3D character, idle animation, 4 states |
+| Godot Character Scene | ✅ Enhanced (Phase 7.0) | `godot/` articulated 3D character, transparent window, AnimationTree, 6 animations |
 | Python Packaging & Entry Point | ✅ Implemented (Phase 2.1) | `pyproject.toml`, `src/octa/__main__.py` |
 | Configuration Infrastructure | ✅ Implemented (Phase 2.2) | `octa.core.config.AppConfig` |
 | Logging Infrastructure | ✅ Implemented (Phase 2.2) | `octa.core.logging.setup_logging` |

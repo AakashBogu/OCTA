@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 5.0 — Voice Interaction (complete)
+**Status:** 🟢 Phase 7.0 — Enhanced Godot Character (complete)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), and Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout) are implemented. Phase 6.0 is in progress: the end-to-end `TutorialEngine`, three sample tutorials, and the user testing/feedback loop (`FeedbackCollector`, `TutorialFeedbackDialog`) are implemented; performance optimization and installer packaging remain planned.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), and Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations) are implemented and verified.
 
 ---
 
@@ -36,13 +36,12 @@ OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop
 
 OCTA currently includes eight verified subsystems:
 
-### 1. Phase 1 Godot 3D Character Prototype
-- A simple 3D robot character built programmatically from Godot primitive meshes (spheres, capsules, cylinders).
-- Warm, friendly placeholder design with head, large eyes, compact body, arms, legs, and antenna.
-- Gentle idle animation: body bobbing, head sway, and arm movement.
-- Four character states with distinct visual feedback: **IDLE**, **LISTENING**, **THINKING**, **SUCCESS**.
-- Keyboard controls for state switching (Space/Enter to cycle, 1–4 for direct selection).
-- Camera, two-point lighting, and dark background environment.
+### 1. Phase 7.0 Enhanced Godot 3D Character & Desktop Window
+- **Transparent Borderless Window:** Transparent desktop companion overlay with per-pixel alpha transparency, always-on-top ordering, default bottom-right screen docking, and left-click mouse dragging to position the character anywhere on the desktop.
+- **Articulated 3D Robot Character:** Built natively in Godot GDScript from primitive meshes with polished PBR materials: pearlescent chassis torso, glowing chest reactor core, graphite neck joint, head with dark obsidian curved visor, digital LED eyes, audio waveform mouth grille, dual angled antennae with glowing status tips, articulated arms with shoulders, upper arms, forearms, hands, pointer finger for on-screen guidance, anti-gravity thruster ring, and soft alpha-blended ground drop shadow disc.
+- **Six Expressive Animations:** Defined in `AnimationPlayer` and `AnimationLibrary` (`idle` breathing/bobbing, `listening` attentive tilt/receptive arms, `thinking` hand-to-chin pondering, `talking` speech nodding/cadence gestures, `pointing` outstretched arm and index finger, and `celebrating` overhead victory bounces).
+- **AnimationTree State Machine:** `AnimationTree` with `AnimationNodeStateMachine` managing smooth crossfades (0.22s) between all states, dynamic emission modulation during `_process`, and backward-compatible state mapping for protocol v1.0.0 (`IDLE`, `LISTENING`, `THINKING`, `SUCCESS`).
+- **Asset Provenance & License:** 100% first-party procedural assets created natively for OCTA under the MIT License (`godot/ASSETS_LICENSE.md`). Zero third-party proprietary meshes or copyright liabilities.
 
 ### 2. Phase 2 Python Application Foundation (Milestones 2.1 & 2.2)
 - Modern `src/octa` Python 3.12 package structure defined via `pyproject.toml` (PEP 621).
@@ -150,21 +149,22 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 4.0 | Screen capture & AI integration | ✅ Complete |
 | 5.0 | Voice interaction (Push-to-Talk) | ✅ Complete |
 | 6.0 | End-to-end tutorial engine & packaging | ✅ Complete |
+| 7.0 | Enhanced Godot character & desktop window | ✅ Complete |
 
 ---
 
 ## Development Status
 
-- **Current phase:** Phase 5.0 Complete — Push-to-talk voice interaction, in-memory microphone capture, injectable STT/TTS provider interfaces, remote speech consent disclosure, instruction readout, visible microphone indicator, and immediate cancel/stop implemented and verified. Phase 6.0 (End-to-end tutorial engine) is in progress: `TutorialEngine` orchestration, sample tutorials, and the user testing/feedback loop are implemented and tested.
+- **Current phase:** Phase 7.0 Complete — Enhanced Godot character, transparent borderless desktop window, mouse dragging, 6 expressive animations (`idle`, `listening`, `thinking`, `talking`, `pointing`, `celebrating`), and `AnimationTree` state machine implemented, documented, and verified.
 - **What exists:**
-  - Runnable Godot 4.7 project with a 3D robot character, idle animations, four-state state machine, and embedded `OctaWsClient`.
+  - Runnable Godot 4.7 project with transparent borderless desktop overlay, articulated 3D character, 6 animations, `AnimationTree` state machine, 100% procedural assets under MIT license (`ASSETS_LICENSE.md`), and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
   - PySide6 desktop interface (`src/octa/desktop`) featuring system tray controls (`OctaSystemTray`), companion diagnostic window (`DiagnosticWindow`), high-level coordinator (`OctaApplication`), and lifecycle controller (`DesktopController`).
   - Phase 4.0 Intelligence Layer (`src/octa/intelligence`) with user-initiated in-memory screen/region capture (`ScreenCapturer`), task/step/outcome/result validation (`TaskDefinition`, `ProgressResult`), screen-sharing consent disclosure and cancellation (`ScreenShareConsentDialog`, `ConsentManager`), isolated OpenAI-compatible LLM adapter (`OpenAICompatibleAdapter`), conservative progress verifier (`ProgressVerifier`), and click-through Qt visual overlay (`GuidanceOverlayWidget`).
   - Phase 5.0 Voice Interaction (`src/octa/voice`) with push-to-talk in-memory audio capture (`PushToTalkRecorder`), injectable STT/TTS/playback interfaces (`SpeechToTextProvider`, `TextToSpeechProvider`, `AudioPlaybackBackend`), mocked and remote HTTPS adapters (`MockSTTProvider`, `MockTTSProvider`, `RemoteHTTPSTTProvider`, `RemoteHTTPTTSProvider`), remote voice consent disclosure (`VoiceConsentDialog`, `VoiceConsentManager`), task/instruction pipeline routing (`VoiceInteractionController`), visible microphone status, and immediate cancel/stop.
-  - Phase 6.0 Tutorial Engine (`src/octa/tutorials`) with `TutorialEngine` orchestrating tutorial selection, text-based step navigation and manual completion, user-initiated capture with single-use consent and background AI verification, overlay and voice synchronization, built-in sample tutorials (OCTA welcome, Windows Notepad, Windows File Explorer), and structured user testing/feedback collection (`FeedbackCollector`, `TutorialFeedbackDialog`, `TutorialSessionMetrics`).
-  - Full automated test suite: 288 Python tests passing (including 31 Phase 6.0 tutorial engine, catalog, feedback, performance, and packaging tests, 21 Phase 5.0 voice/audio/consent/provider/controller/config unit tests, 56 Phase 4.0 intelligence unit tests, 24 desktop UI/controller unit tests, 4 real-binary end-to-end bridge tests, 5 Godot process lifecycle tests, 19 handoff tests, 22 server tests, and 26 protocol tests) + 13 headless Godot protocol tests.
-- **What does not exist yet:** Wake-word detection (explicitly deferred) and Phase 7.0 advanced 3D character animations/transparent desktop overlay.
+  - Phase 6.0 Tutorial Engine (`src/octa/tutorials`) with `TutorialEngine` orchestrating tutorial selection, text-based step navigation and manual completion, user-initiated capture with single-use consent and background AI verification, overlay and voice synchronization, built-in sample tutorials (OCTA welcome, Windows Notepad, Windows File Explorer), structured feedback collection (`FeedbackCollector`, `TutorialFeedbackDialog`, `TutorialSessionMetrics`), performance optimizations, and standalone Windows packaging (`octa.spec`, `build_windows_dist.py`).
+  - Full automated test suite: 288 Python tests passing + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
+- **What does not exist yet:** Wake-word detection (explicitly deferred), multi-monitor support, and cloud sync.
 
 ---
 

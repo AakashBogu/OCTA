@@ -663,3 +663,45 @@ Designed, implemented, verified, and smoke-tested a standalone Windows distribut
 
 ### Next Step
 - Phase 7.0 — Advanced Godot character (higher quality 3D model, transparent borderless window, animations).
+
+---
+
+## Task: Phase 7.0 — Enhanced Godot Character
+
+**Date:** 2026-11-11
+**Phase:** 7.0
+
+### Summary
+Implemented and verified all Phase 7.0 roadmap items for the Godot desktop companion:
+1. Configured a transparent, borderless, always-on-top desktop character window (`godot/project.godot` and `godot/scripts/main_scene.gd`) positioned in the bottom-right of the usable screen area, with smooth left-click mouse dragging to move the companion anywhere on the desktop.
+2. Built an articulated 3D character companion model (`godot/scripts/robot_character.gd`) featuring torso chassis, glowing chest core, neck joint, head with dark glossy curved visor, digital eye indicators, mouth grille LED bar, dual articulated antennae with glowing status tips, articulated arms with shoulders, upper arms, forearms, hands, pointer finger, anti-gravity thruster ring, and soft alpha-blended ground contact drop shadow disc.
+3. Created asset provenance and license documentation (`godot/ASSETS_LICENSE.md`) certifying 100% first-party procedural geometry and materials under the MIT License with zero external copyright dependencies.
+4. Implemented advanced animations (`idle`, `listening`, `thinking`, `talking`, `pointing`, `celebrating`) in `AnimationPlayer` and `AnimationLibrary`.
+5. Integrated `AnimationTree` with `AnimationNodeStateMachine` and `AnimationNodeStateMachinePlayback` managing state transitions with smooth crossfades (`xfade_time = 0.22`), dynamic emission updates in `_process`, and backward-compatible state mapping for protocol v1.0.0 (`IDLE`, `LISTENING`, `THINKING`, `SUCCESS`).
+6. Added 66 automated tests in `godot/tests/test_enhanced_character.gd` validating hierarchy, materials, animations, state transitions, action helpers, dynamic emissions, and main scene initialization in headless Godot 4.7.
+
+### Files Changed
+- `godot/project.godot` — Configured window display and rendering settings for desktop transparency: `window/size/viewport_width=360`, `window/size/viewport_height=420`, `window/size/borderless=true`, `window/size/always_on_top=true`, `window/size/transparent=true`, `window/per_pixel_transparency/allowed=true`, `rendering/viewport/transparent_background=true`.
+- `godot/scripts/main_scene.gd` — Initialized desktop window transparency, usable screen positioning, left-click window dragging across desktop, clear environment with `Color(0, 0, 0, 0)`, three-point lighting (key, fill, rim), and state hotkeys (1-4 protocol states, 5 talking, 6 pointing, 7 celebrating, Space/Enter cycling).
+- `godot/scripts/robot_character.gd` — Complete articulated 3D character model, animations, materials, and `AnimationTree` state machine.
+- `godot/ASSETS_LICENSE.md` — Created. Provenance and MIT licensing terms for all character assets.
+- `godot/tests/test_enhanced_character.gd` — Created. 66 automated tests for character hierarchy, animation player, animation tree state machine, state playback, action methods, dynamic emission processing, and main scene setup.
+- `ROADMAP.md` — Marked all Phase 7.0 items complete.
+- `README.md` — Updated project status and feature documentation for Phase 7.0.
+- `CHANGELOG.md` — Added Phase 7.0 entries under `[Unreleased]`.
+- `docs/PROGRESS.md` — Appended this progress entry.
+- `docs/architecture.md` — Documented desktop companion window transparency, articulated character model, and `AnimationTree` architecture.
+
+### Validation
+- **Godot Enhanced Character Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_enhanced_character.gd`: 66 passed, 0 failed.
+- **Godot Protocol Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_ws_protocol.gd`: 13 passed, 0 failed.
+- **Full Python Pytest Suite**: Ran `.venv\Scripts\python.exe -m pytest tests`: 288 passed in 16.73s.
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 70 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None. Windows transparency and input behavior validated on Godot 4.7.2; cross-platform transparency behavior on Linux/macOS is not claimed without dedicated testing on those platforms.
+
+### Next Step
+- Complete user review and prepare for next milestone or release.
