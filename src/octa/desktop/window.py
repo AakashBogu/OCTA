@@ -5,6 +5,8 @@ from __future__ import annotations
 from PySide6.QtCore import Slot
 from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
+    QComboBox,
+    QDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -17,6 +19,87 @@ from PySide6.QtWidgets import (
 
 from octa.desktop.controller import DesktopController
 from octa.process.state import ProcessState
+
+
+class TutorialFeedbackDialog(QDialog):
+    """User feedback dialog for rating tutorials and recording qualitative observations."""
+
+    def __init__(
+        self,
+        task_title: str,
+        step_title: str,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("OCTA — Tutorial Feedback")
+        self.resize(380, 320)
+        self.setModal(True)
+        self._task_title = task_title
+        self._step_title = step_title
+
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        header = QLabel(f"Feedback for: {self._task_title}\nStep: {self._step_title}", self)
+        header.setWordWrap(True)
+        layout.addWidget(header)
+
+        # Rating
+        rating_layout = QHBoxLayout()
+        rating_label = QLabel("Rating:", self)
+        self._combo_rating = QComboBox(self)
+        self._combo_rating.addItems(
+            ["5 - Excellent", "4 - Good", "3 - Average", "2 - Needs Work", "1 - Confusing"]
+        )
+        rating_layout.addWidget(rating_label)
+        rating_layout.addWidget(self._combo_rating, stretch=1)
+        layout.addLayout(rating_layout)
+
+        # Difficulty
+        diff_layout = QHBoxLayout()
+        diff_label = QLabel("Difficulty:", self)
+        self._combo_difficulty = QComboBox(self)
+        self._combo_difficulty.addItem("Just Right", "just_right")
+        self._combo_difficulty.addItem("Easy", "easy")
+        self._combo_difficulty.addItem("Challenging", "hard")
+        diff_layout.addWidget(diff_label)
+        diff_layout.addWidget(self._combo_difficulty, stretch=1)
+        layout.addLayout(diff_layout)
+
+        # Comment
+        comment_label = QLabel("Comments or Suggestions:", self)
+        self._txt_comment = QPlainTextEdit(self)
+        self._txt_comment.setPlaceholderText("What worked well or what was confusing? (optional)")
+        layout.addWidget(comment_label)
+        layout.addWidget(self._txt_comment, stretch=1)
+
+        # Buttons
+        btn_layout = QHBoxLayout()
+        self._btn_submit = QPushButton("Submit Feedback", self)
+        self._btn_cancel = QPushButton("Cancel", self)
+        self._btn_submit.clicked.connect(self.accept)
+        self._btn_cancel.clicked.connect(self.reject)
+        btn_layout.addStretch(1)
+        btn_layout.addWidget(self._btn_cancel)
+        btn_layout.addWidget(self._btn_submit)
+        layout.addLayout(btn_layout)
+
+    def get_rating(self) -> int:
+        """Return selected rating from 1 to 5."""
+        idx = self._combo_rating.currentIndex()
+        return 5 - idx
+
+    def get_difficulty(self) -> str:
+        """Return selected difficulty slug ('easy', 'just_right', 'hard')."""
+        return str(self._combo_difficulty.currentData())
+
+    def get_comment(self) -> str:
+        """Return free-form user comment string."""
+        return self._txt_comment.toPlainText().strip()
 
 
 class DiagnosticWindow(QWidget):
@@ -138,6 +221,83 @@ class DiagnosticWindow(QWidget):
 
         main_layout.addWidget(voice_group)
 
+        # ── Tutorial Guide & Progress Verification (Phase 6.0) ─
+        tutorial_group = QGroupBox("Tutorial Guide & Progress Verification", self)
+        tutorial_layout = QVBoxLayout(tutorial_group)
+        tutorial_layout.setSpacing(6)
+
+        selector_row = QHBoxLayout()
+        selector_row.setSpacing(8)
+        selector_label = QLabel("Tutorial:", self)
+        selector_label.setFont(label_font)
+        self._combo_tutorial = QComboBox(self)
+        for task_def in self._controller.tutorial_engine.available_tutorials:
+            self._combo_tutorial.addItem(
+                f"{task_def.title} ({task_def.application})",
+                userData=task_def.task_id,
+            )
+        self._combo_tutorial.currentIndexChanged.connect(self._on_tutorial_combo_changed)
+        self._btn_reset_tutorial = QPushButton("Reset Tutorial", self)
+        self._btn_reset_tutorial.clicked.connect(self._on_reset_tutorial_clicked)
+
+        selector_row.addWidget(selector_label)
+        selector_row.addWidget(self._combo_tutorial, stretch=1)
+        selector_row.addWidget(self._btn_reset_tutorial)
+        tutorial_layout.addLayout(selector_row)
+
+        self._lbl_tutorial_status = QLabel(
+            self._controller.tutorial_engine.get_tutorial_status_summary(),
+            self,
+        )
+        self._lbl_tutorial_status.setWordWrap(True)
+        self._lbl_verification_status = QLabel(
+            self._controller.tutorial_engine.get_verification_mode_summary(),
+            self,
+        )
+        self._lbl_verification_status.setWordWrap(True)
+
+        for t_lbl in (self._lbl_tutorial_status, self._lbl_verification_status):
+            t_lbl.setFont(label_font)
+            tutorial_layout.addWidget(t_lbl)
+
+        step_nav_layout = QHBoxLayout()
+        step_nav_layout.setSpacing(8)
+        self._btn_prev_step = QPushButton("Previous Step", self)
+        self._btn_next_step = QPushButton("Next Step", self)
+        self._btn_hint = QPushButton("Show Hint", self)
+        self._btn_complete_manual = QPushButton("Complete Step (Text Flow)", self)
+
+        self._btn_prev_step.clicked.connect(self._on_prev_step_clicked)
+        self._btn_next_step.clicked.connect(self._on_next_step_clicked)
+        self._btn_hint.clicked.connect(self._on_hint_clicked)
+        self._btn_complete_manual.clicked.connect(self._on_complete_manual_clicked)
+
+        step_nav_layout.addWidget(self._btn_prev_step)
+        step_nav_layout.addWidget(self._btn_next_step)
+        step_nav_layout.addWidget(self._btn_hint)
+        step_nav_layout.addWidget(self._btn_complete_manual)
+        tutorial_layout.addLayout(step_nav_layout)
+
+        verify_btn_layout = QHBoxLayout()
+        verify_btn_layout.setSpacing(8)
+        self._btn_verify_ai = QPushButton("Verify Step (Capture & AI)", self)
+        self._btn_toggle_overlay = QPushButton("Enable Overlay", self)
+        self._btn_cancel_verify = QPushButton("Cancel Verification", self)
+        self._btn_feedback = QPushButton("Give Feedback", self)
+
+        self._btn_verify_ai.clicked.connect(self._on_verify_ai_clicked)
+        self._btn_toggle_overlay.clicked.connect(self._on_toggle_overlay_clicked)
+        self._btn_cancel_verify.clicked.connect(self._on_cancel_verify_clicked)
+        self._btn_feedback.clicked.connect(self._on_feedback_clicked)
+
+        verify_btn_layout.addWidget(self._btn_verify_ai)
+        verify_btn_layout.addWidget(self._btn_toggle_overlay)
+        verify_btn_layout.addWidget(self._btn_cancel_verify)
+        verify_btn_layout.addWidget(self._btn_feedback)
+        tutorial_layout.addLayout(verify_btn_layout)
+
+        main_layout.addWidget(tutorial_group)
+
         # ── Activity & Error Log ─────────────────────────────
         log_group = QGroupBox("Activity & Diagnostics Log", self)
         log_layout = QVBoxLayout(log_group)
@@ -166,6 +326,9 @@ class DiagnosticWindow(QWidget):
         self._controller.microphone_active_changed.connect(self._on_microphone_active_changed)
         self._controller.speaking_active_changed.connect(self._on_speaking_active_changed)
         self._controller.instruction_updated.connect(self._on_instruction_updated)
+        self._controller.tutorial_state_changed.connect(self._on_tutorial_state_changed)
+        self._controller.tutorial_step_changed.connect(self._on_tutorial_step_changed)
+        self._controller.verification_completed.connect(self._on_verification_completed)
 
     # ──────────────────────────────────────────
     # UI Update Slots
@@ -179,6 +342,7 @@ class DiagnosticWindow(QWidget):
         self._update_client_display()
         self._update_robot_display()
         self._update_voice_display()
+        self._update_tutorial_display()
         self._update_buttons()
 
     def _update_process_display(self) -> None:
@@ -216,8 +380,23 @@ class DiagnosticWindow(QWidget):
         mic_active = self._controller.is_microphone_active
         self._on_microphone_active_changed(mic_active)
         self._on_voice_state_changed(self._controller.voice_state)
-        inst = self._controller.voice_controller.last_instruction
+        inst = self._controller.tutorial_engine.current_instruction
         self._lbl_instruction.setText(f"Current Instruction: {inst.instruction_text}")
+
+    def _update_tutorial_display(self) -> None:
+        engine = self._controller.tutorial_engine
+        self._lbl_tutorial_status.setText(engine.get_tutorial_status_summary())
+        last_err = engine.last_error
+        if last_err:
+            self._lbl_verification_status.setText(f"Verification: {last_err}")
+        else:
+            self._lbl_verification_status.setText(engine.get_verification_mode_summary())
+
+        self._btn_toggle_overlay.setText(
+            "Disable Overlay" if engine.is_overlay_enabled else "Enable Overlay"
+        )
+        self._btn_cancel_verify.setEnabled(engine.is_busy)
+        self._btn_verify_ai.setEnabled(not engine.is_busy)
 
     def _update_buttons(self) -> None:
         is_running = self._controller.process_manager.is_running
@@ -302,6 +481,114 @@ class DiagnosticWindow(QWidget):
     @Slot(str, str)
     def _on_instruction_updated(self, _step_id: str, instruction_text: str) -> None:
         self._lbl_instruction.setText(f"Current Instruction: {instruction_text}")
+
+    @Slot(str)
+    def _on_tutorial_state_changed(self, _new_state: str) -> None:
+        self._update_tutorial_display()
+
+    @Slot(int, int, str, str)
+    def _on_tutorial_step_changed(
+        self,
+        _step_num: int,
+        _total_steps: int,
+        _step_id: str,
+        instruction_text: str,
+    ) -> None:
+        self._lbl_instruction.setText(f"Current Instruction: {instruction_text}")
+        self._update_tutorial_display()
+
+    @Slot(object)
+    def _on_verification_completed(self, _result: object) -> None:
+        self._update_tutorial_display()
+
+    @Slot(int)
+    def _on_tutorial_combo_changed(self, index: int) -> None:
+        if index < 0:
+            return
+        task_id = self._combo_tutorial.itemData(index)
+        if isinstance(task_id, str) and task_id:
+            try:
+                self._controller.select_tutorial(task_id)
+            except Exception:
+                pass
+            self._update_tutorial_display()
+
+    @Slot()
+    def _on_reset_tutorial_clicked(self) -> None:
+        try:
+            self._controller.reset_tutorial()
+        finally:
+            self._update_tutorial_display()
+
+    @Slot()
+    def _on_prev_step_clicked(self) -> None:
+        try:
+            self._controller.previous_tutorial_step()
+        finally:
+            self._update_tutorial_display()
+
+    @Slot()
+    def _on_next_step_clicked(self) -> None:
+        try:
+            self._controller.next_tutorial_step()
+        finally:
+            self._update_tutorial_display()
+
+    @Slot()
+    def _on_hint_clicked(self) -> None:
+        try:
+            self._controller.show_tutorial_hint()
+        finally:
+            self._update_tutorial_display()
+
+    @Slot()
+    def _on_complete_manual_clicked(self) -> None:
+        try:
+            self._controller.complete_step_manually(user_initiated=True)
+        finally:
+            self._update_tutorial_display()
+
+    @Slot()
+    def _on_verify_ai_clicked(self) -> None:
+        try:
+            self._controller.verify_current_step_with_ai(user_initiated=True)
+        except Exception:
+            pass
+        finally:
+            self._update_tutorial_display()
+
+    @Slot()
+    def _on_toggle_overlay_clicked(self) -> None:
+        engine = self._controller.tutorial_engine
+        self._controller.set_overlay_enabled(not engine.is_overlay_enabled)
+        self._update_tutorial_display()
+
+    @Slot()
+    def _on_cancel_verify_clicked(self) -> None:
+        self._controller.cancel_tutorial_operation()
+        self._update_tutorial_display()
+
+    @Slot()
+    def _on_feedback_clicked(self) -> None:
+        """Open the feedback dialog to record qualitative rating and comments."""
+        engine = self._controller.tutorial_engine
+        step = engine.current_step
+        dialog = TutorialFeedbackDialog(
+            task_title=engine.active_task.title,
+            step_title=f"Step {step.order}: {step.title}",
+            parent=self,
+        )
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._controller.record_tutorial_feedback(
+                rating=dialog.get_rating(),
+                difficulty=dialog.get_difficulty(),
+                comment=dialog.get_comment(),
+                step_id=step.step_id,
+            )
+            self._append_log(
+                f"Recorded user feedback ({dialog.get_rating()} stars, {dialog.get_difficulty()}).",
+                "INFO",
+            )
 
     @Slot()
     def _on_ptt_clicked(self) -> None:
@@ -390,3 +677,16 @@ class DiagnosticWindow(QWidget):
     def is_microphone_indicator_active(self) -> bool:
         """Return True when the UI microphone indicator shows live recording."""
         return "RECORDING" in self._lbl_mic_status.text()
+
+    def get_tutorial_status(self) -> str:
+        """Return text of the tutorial progress & status label."""
+        return self._lbl_tutorial_status.text()
+
+    def get_verification_status(self) -> str:
+        """Return text of the verification mode & status label."""
+        return self._lbl_verification_status.text()
+
+    def get_selected_tutorial_id(self) -> str:
+        """Return the task_id of the currently selected tutorial in the combo box."""
+        data = self._combo_tutorial.currentData()
+        return str(data) if data is not None else ""

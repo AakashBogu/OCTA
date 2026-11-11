@@ -503,3 +503,68 @@ Designed, implemented, and verified Phase 5.0 — Voice Interaction (`src/octa/v
 
 - User review of Phase 5.0 changes and selection of desired local or remote speech provider option if live speech calls are desired.
 - Proceed to Phase 6.0 (End-to-End Tutorial Engine).
+
+---
+
+## Task: Phase 6.0 — End-to-End Tutorial Engine (orchestration & sample tutorials)
+**Date:** 2026-11-11
+**Phase:** 6.0
+
+### Files Changed
+- `src/octa/tutorials/__init__.py`, `catalog.py`, `engine.py` — New tutorial package: `TutorialEngine` orchestration and built-in sample tutorials.
+- `src/octa/desktop/controller.py` — Owns a `TutorialEngine`, forwards its signals, exposes tutorial actions, shuts the engine down on stop.
+- `src/octa/desktop/window.py` — Tutorial panel (selector, status, verification mode, navigation/verify/overlay controls).
+- `tests/unit/test_tutorial_engine.py`, `tests/unit/test_tutorial_catalog.py` — 16 new tests.
+- `README.md`, `ROADMAP.md`, `CHANGELOG.md`, `docs/PROGRESS.md` — Documentation updates.
+
+### Fixes Applied While Finishing the Work
+- `AppConfig.save_screenshots` → `AppConfig.capture_save_screenshots` (engine crashed on construction, breaking 5 desktop application tests).
+- Consent request is now built with `OpenAICompatibleAdapter.build_consent_request` using the same system prompt, user prompt, and purpose as `ProgressVerifier.verify_step_with_image`, so the single-use decision validates against the real outbound payload (previous code used non-existent `ConsentRequest` fields).
+- Overlay calls corrected to `apply_hints` / `clear_annotations`; out-of-bounds cues are logged and skipped instead of raising.
+- `ProgressResult.suggested_action` → `ProgressResult.next_instruction`.
+- Engine no longer overwrites a custom task preloaded in an injected `VoiceInteractionController` (fixed regression in `test_desktop_window_makes_microphone_activity_visible_and_supports_cancel`).
+- Tests aligned with real APIs (`ConsentManager(handler=...)`, `LLMConfig(endpoint=..., model=...)`, `(request, timeout) -> bytes` transport, real PNG capture, `observed_elements` for required elements, `MockSTTProvider(responses=...)`).
+
+### Validation
+- `.venv\Scripts\python -m pytest -q` — 273 passed.
+- `.venv\Scripts\ruff check src tests` — All checks passed.
+- `.venv\Scripts\ruff format --check src tests` — all files formatted.
+
+### Blockers
+- None. Live AI verification has not been exercised against a real endpoint (requires `OCTA_LLM_API_KEY`).
+
+### Next Step
+- Manual run of `python -m octa` to exercise the tutorial panel end-to-end; remaining Phase 6.0 items: user testing/feedback loop, performance optimization, installer packaging.
+
+---
+
+## Task: Phase 6.0 — User Testing and Feedback Loop
+**Date:** 2026-11-11
+**Phase:** 6.0
+
+### Summary
+Implemented structured user feedback collection and session metrics tracking for the tutorial engine. Users can submit star ratings (1–5), perceived difficulty ratings, and qualitative comments on specific steps or whole tutorials via `TutorialFeedbackDialog` in the diagnostic monitor. The engine tracks quantitative telemetry across tutorial sessions (duration, steps completed, hint usage count, AI verifications attempted vs passed, manual completions, and overlay toggles) without persisting screenshots or credentials.
+
+### Files Changed
+- `src/octa/tutorials/feedback.py` — Created. `TutorialFeedback`, `TutorialSessionMetrics`, and `FeedbackCollector` with validation, JSON serialization, and optional local storage.
+- `src/octa/tutorials/__init__.py` — Exported `TutorialFeedback`, `TutorialSessionMetrics`, and `FeedbackCollector`.
+- `src/octa/tutorials/engine.py` — Integrated session metrics tracking (hints, verifications, completions, overlay toggles, elapsed duration) and feedback recording methods (`record_feedback()`, `get_session_metrics()`). Emits `feedback_recorded` and `session_metrics_updated`.
+- `src/octa/desktop/controller.py` — Added `record_tutorial_feedback()` slot, `tutorial_session_metrics` property, and forwarded `feedback_recorded` signal.
+- `src/octa/desktop/window.py` — Added modal `TutorialFeedbackDialog` (rating combo, difficulty combo, comment field) and wired `Give Feedback` button in the diagnostic window.
+- `tests/unit/test_tutorial_feedback.py` — 6 new unit tests verifying feedback validation, metrics tracking, collector persistence, engine session metrics, and dialog UI submission.
+- `README.md`, `ROADMAP.md`, `CHANGELOG.md`, `docs/PROGRESS.md` — Documentation updates reflecting the completed feedback loop milestone.
+
+### Validation
+- **Focused Feedback Tests:** Ran `pytest tests/unit/test_tutorial_feedback.py -v`, 6 passed.
+- **Combined Tutorial & Desktop Tests:** Ran `pytest tests/unit/test_tutorial_engine.py tests/unit/test_tutorial_catalog.py tests/unit/test_tutorial_feedback.py tests/unit/test_desktop_window.py tests/unit/test_desktop_controller.py tests/unit/test_desktop_application.py -v`, 41 passed.
+- **Full Python Test Suite:** Ran `pytest -q -p no:cacheprovider`, all 279 tests passed.
+- **Ruff Linter:** Ran `ruff check src tests`, all checks passed with 0 errors.
+- **Ruff Formatter:** Ran `ruff format --check src tests`, all 68 files properly formatted.
+- **Git Diff Check:** Ran `git diff --check`, 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Phase 6.0 performance optimization (image downscaling/subsampling for ultra-high-res displays before base64 serialization, overlay rendering optimization).
+- Phase 6.0 distribution / installer packaging.

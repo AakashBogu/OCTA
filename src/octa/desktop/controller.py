@@ -18,6 +18,8 @@ from octa.intelligence.tasks import GuidanceInstruction
 from octa.process.exceptions import ProcessError
 from octa.process.manager import GodotProcessManager
 from octa.process.state import ProcessState
+from octa.tutorials.engine import TutorialEngine
+from octa.tutorials.feedback import TutorialFeedback, TutorialSessionMetrics
 from octa.voice.controller import VoiceInteractionController
 
 DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 1500
@@ -41,6 +43,14 @@ class DesktopController(QObject):
     microphone_active_changed = Signal(bool)  # True when push-to-talk mic is recording
     speaking_active_changed = Signal(bool)  # True when TTS playback is active
     instruction_updated = Signal(str, str)  # step_id, instruction_text
+    tutorial_state_changed = Signal(
+        str
+    )  # IDLE, ACTIVE, VERIFYING, GENERATING_GUIDANCE, COMPLETED, ERROR
+    tutorial_step_changed = Signal(
+        int, int, str, str
+    )  # step_num, total_steps, step_id, instruction
+    verification_completed = Signal(object)  # ProgressResult
+    feedback_recorded = Signal(object)  # TutorialFeedback
 
     def __init__(
         self,
@@ -48,6 +58,7 @@ class DesktopController(QObject):
         process_manager: GodotProcessManager | None = None,
         server: WebSocketServer | None = None,
         voice_controller: VoiceInteractionController | None = None,
+        tutorial_engine: TutorialEngine | None = None,
         *,
         headless: bool = False,
         parent: QObject | None = None,
@@ -86,6 +97,17 @@ class DesktopController(QObject):
                 parent=self,
             )
 
+        if tutorial_engine is not None:
+            self._tutorial_engine = tutorial_engine
+            if tutorial_engine.parent() is None:
+                tutorial_engine.setParent(self)
+        else:
+            self._tutorial_engine = TutorialEngine.from_app_config(
+                self._config,
+                voice_controller=self._voice_controller,
+                parent=self,
+            )
+
         self._stopping = False
         self._restarting = False
         self._connect_signals()
@@ -117,6 +139,15 @@ class DesktopController(QObject):
         self._voice_controller.instruction_ready.connect(self.instruction_updated.emit)
         self._voice_controller.voice_activity_event.connect(self._log)
         self._voice_controller.voice_error.connect(self.error_occurred.emit)
+
+        # Tutorial engine signals
+        self._tutorial_engine.session_state_changed.connect(self.tutorial_state_changed.emit)
+        self._tutorial_engine.step_changed.connect(self._on_tutorial_step_changed)
+        self._tutorial_engine.verification_completed.connect(self.verification_completed.emit)
+        self._tutorial_engine.companion_state_requested.connect(self._on_companion_state_requested)
+        self._tutorial_engine.activity_logged.connect(self._log)
+        self._tutorial_engine.error_occurred.connect(self.error_occurred.emit)
+        self._tutorial_engine.feedback_recorded.connect(self.feedback_recorded.emit)
 
     # ──────────────────────────────────────────
     # Properties
@@ -186,6 +217,21 @@ class DesktopController(QObject):
     def is_speaking(self) -> bool:
         """Whether instruction audio is actively playing."""
         return self._voice_controller.is_speaking
+
+    @property
+    def tutorial_engine(self) -> TutorialEngine:
+        """End-to-end tutorial engine coordinating tasks, capture, consent, AI, and overlay."""
+        return self._tutorial_engine
+
+    @property
+    def tutorial_state(self) -> str:
+        """Current tutorial session state string."""
+        return self._tutorial_engine.state.value
+
+    @property
+    def tutorial_session_metrics(self) -> TutorialSessionMetrics:
+        """Active tutorial session metrics."""
+        return self._tutorial_engine.get_session_metrics()
 
     @property
     def is_active(self) -> bool:
@@ -333,6 +379,72 @@ class DesktopController(QObject):
         """Immediately cancel/stop any active push-to-talk recording, STT, or TTS playback."""
         self._voice_controller.cancel_or_stop()
 
+    @Slot(str)
+    def select_tutorial(self, task_id: str) -> GuidanceInstruction:
+        """Select a sample tutorial by task_id and reset progress to Step 1."""
+        return self._tutorial_engine.select_tutorial(task_id)
+
+    @Slot()
+    def start_tutorial(self) -> GuidanceInstruction:
+        """Start or restart the active tutorial from Step 1."""
+        return self._tutorial_engine.start_tutorial()
+
+    @Slot()
+    def reset_tutorial(self) -> GuidanceInstruction:
+        """Reset the active tutorial to Step 1."""
+        return self._tutorial_engine.reset_tutorial()
+
+    @Slot()
+    def next_tutorial_step(self) -> GuidanceInstruction:
+        """Advance to the next step in the active tutorial (text-based flow)."""
+        return self._tutorial_engine.next_step()
+
+    @Slot()
+    def previous_tutorial_step(self) -> GuidanceInstruction:
+        """Return to the previous step in the active tutorial (text-based flow)."""
+        return self._tutorial_engine.previous_step()
+
+    @Slot()
+    def show_tutorial_hint(self) -> GuidanceInstruction:
+        """Display the hint for the current tutorial step."""
+        return self._tutorial_engine.request_hint()
+
+    @Slot()
+    def complete_step_manually(self, *, user_initiated: bool = True) -> GuidanceInstruction:
+        """Mark the current step complete via the text-based flow and advance."""
+        return self._tutorial_engine.complete_current_step_manually(user_initiated=user_initiated)
+
+    @Slot()
+    def verify_current_step_with_ai(self, *, user_initiated: bool = True) -> int:
+        """Capture screen, request single-use consent, and verify current step with AI."""
+        return self._tutorial_engine.verify_current_step(user_initiated=user_initiated)
+
+    @Slot()
+    def cancel_tutorial_operation(self) -> bool:
+        """Cancel any in-flight background tutorial verification or guidance operation."""
+        return self._tutorial_engine.cancel_active_operation()
+
+    @Slot(bool)
+    def set_overlay_enabled(self, enabled: bool) -> None:
+        """Enable or disable the passive visual guidance overlay."""
+        self._tutorial_engine.set_overlay_enabled(enabled)
+
+    @Slot(int, str, str, str)
+    def record_tutorial_feedback(
+        self,
+        rating: int,
+        difficulty: str = "just_right",
+        comment: str = "",
+        step_id: str | None = None,
+    ) -> TutorialFeedback:
+        """Record structured user feedback for the current tutorial step."""
+        return self._tutorial_engine.record_feedback(
+            rating=rating,
+            difficulty=difficulty,
+            comment=comment,
+            step_id=step_id,
+        )
+
     # ──────────────────────────────────────────
     # Internal Lifecycle Sequencing & Helpers
     # ──────────────────────────────────────────
@@ -446,8 +558,9 @@ class DesktopController(QObject):
         self._stopping = True
         self._log("Stopping companion services...", "INFO")
         try:
-            # Immediately cancel/stop any active push-to-talk recording or speech playback
+            # Immediately cancel/stop any active push-to-talk recording, speech, or tutorial worker
             self._voice_controller.cancel_or_stop()
+            self._tutorial_engine.shutdown(timeout_ms=min(1000, max(100, int(timeout_ms))))
             total_timeout_ms = max(1, int(timeout_ms))
             started_at = time.monotonic()
 
@@ -633,3 +746,20 @@ class DesktopController(QObject):
                     self._server.set_state(target_robot_state)
                 except Exception:
                     pass
+
+    def _on_tutorial_step_changed(
+        self,
+        step_num: int,
+        total_steps: int,
+        step_id: str,
+        instruction_text: str,
+    ) -> None:
+        self.tutorial_step_changed.emit(step_num, total_steps, step_id, instruction_text)
+        self.instruction_updated.emit(step_id, instruction_text)
+
+    def _on_companion_state_requested(self, target_robot_state: str) -> None:
+        if self._server.is_authenticated and target_robot_state:
+            try:
+                self._server.set_state(target_robot_state)
+            except Exception:
+                pass

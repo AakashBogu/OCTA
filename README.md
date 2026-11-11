@@ -4,7 +4,7 @@
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), and Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout) are implemented. Full tutorial engine orchestration (Phase 6.0) and installer packaging remain planned.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), and Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout) are implemented. Phase 6.0 is in progress: the end-to-end `TutorialEngine`, three sample tutorials, and the user testing/feedback loop (`FeedbackCollector`, `TutorialFeedbackDialog`) are implemented; performance optimization and installer packaging remain planned.
 
 ---
 
@@ -155,14 +155,15 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 
 ## Development Status
 
-- **Current phase:** Phase 5.0 Complete — Push-to-talk voice interaction, in-memory microphone capture, injectable STT/TTS provider interfaces, remote speech consent disclosure, instruction readout, visible microphone indicator, and immediate cancel/stop implemented and verified. Next planned phase is Phase 6.0 (End-to-end tutorial engine).
+- **Current phase:** Phase 5.0 Complete — Push-to-talk voice interaction, in-memory microphone capture, injectable STT/TTS provider interfaces, remote speech consent disclosure, instruction readout, visible microphone indicator, and immediate cancel/stop implemented and verified. Phase 6.0 (End-to-end tutorial engine) is in progress: `TutorialEngine` orchestration, sample tutorials, and the user testing/feedback loop are implemented and tested.
 - **What exists:**
   - Runnable Godot 4.7 project with a 3D robot character, idle animations, four-state state machine, and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
   - PySide6 desktop interface (`src/octa/desktop`) featuring system tray controls (`OctaSystemTray`), companion diagnostic window (`DiagnosticWindow`), high-level coordinator (`OctaApplication`), and lifecycle controller (`DesktopController`).
   - Phase 4.0 Intelligence Layer (`src/octa/intelligence`) with user-initiated in-memory screen/region capture (`ScreenCapturer`), task/step/outcome/result validation (`TaskDefinition`, `ProgressResult`), screen-sharing consent disclosure and cancellation (`ScreenShareConsentDialog`, `ConsentManager`), isolated OpenAI-compatible LLM adapter (`OpenAICompatibleAdapter`), conservative progress verifier (`ProgressVerifier`), and click-through Qt visual overlay (`GuidanceOverlayWidget`).
   - Phase 5.0 Voice Interaction (`src/octa/voice`) with push-to-talk in-memory audio capture (`PushToTalkRecorder`), injectable STT/TTS/playback interfaces (`SpeechToTextProvider`, `TextToSpeechProvider`, `AudioPlaybackBackend`), mocked and remote HTTPS adapters (`MockSTTProvider`, `MockTTSProvider`, `RemoteHTTPSTTProvider`, `RemoteHTTPTTSProvider`), remote voice consent disclosure (`VoiceConsentDialog`, `VoiceConsentManager`), task/instruction pipeline routing (`VoiceInteractionController`), visible microphone status, and immediate cancel/stop.
-  - Full automated test suite: 257 Python tests passing (including 21 Phase 5.0 voice/audio/consent/provider/controller/config unit tests, 56 Phase 4.0 intelligence unit tests, 24 desktop UI/controller unit tests, 4 real-binary end-to-end bridge tests, 5 Godot process lifecycle tests, 19 handoff tests, 22 server tests, and 26 protocol tests) + 13 headless Godot protocol tests.
+  - Phase 6.0 Tutorial Engine (`src/octa/tutorials`) with `TutorialEngine` orchestrating tutorial selection, text-based step navigation and manual completion, user-initiated capture with single-use consent and background AI verification, overlay and voice synchronization, built-in sample tutorials (OCTA welcome, Windows Notepad, Windows File Explorer), and structured user testing/feedback collection (`FeedbackCollector`, `TutorialFeedbackDialog`, `TutorialSessionMetrics`).
+  - Full automated test suite: 279 Python tests passing (including 22 Phase 6.0 tutorial engine, catalog, and feedback tests, 21 Phase 5.0 voice/audio/consent/provider/controller/config unit tests, 56 Phase 4.0 intelligence unit tests, 24 desktop UI/controller unit tests, 4 real-binary end-to-end bridge tests, 5 Godot process lifecycle tests, 19 handoff tests, 22 server tests, and 26 protocol tests) + 13 headless Godot protocol tests.
 - **What does not exist yet:** Wake-word detection (explicitly deferred), full multi-step interactive tutorial loop orchestration, or standalone installer.
 
 ---
@@ -283,7 +284,7 @@ OCTA/
 │           ├── controller.py     # VoiceInteractionController & instruction pipeline routing
 │           ├── exceptions.py     # Voice, microphone, consent, and provider exceptions
 │           └── providers.py      # Injectable STT/TTS protocols, mocks, HTTP providers & catalog
-├── tests/                        # Automated test suite (257 Python tests passing)
+├── tests/                        # Automated test suite (279 Python tests passing)
 │   ├── conftest.py               # Shared test fixtures & custom markers
 │   ├── integration/              # Real binary integration tests
 │   │   ├── test_end_to_end_bridge.py          # Full Python server and Godot client tests
