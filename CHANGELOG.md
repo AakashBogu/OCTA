@@ -11,6 +11,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Phase 9.1 — Secure Tutorial Package Archive & CLI (2026-11-12)**
+  - `src/octa/tutorials/packaging.py` — Created secure packaging subsystem: `pack_tutorial_package()`, `verify_tutorial_package()`, `compute_file_sha256()`, `PackageVerificationResult`, and dedicated exception hierarchy (`PackageError`, `PackageSecurityError`, `PackageQuotaError`, `PackageFormatError`).
+  - `src/octa/tutorials/packaging.py` — Hardened security boundaries: strict Zip Slip directory traversal prevention, rejection of absolute paths, Windows drive paths, backslashes, consecutive slashes, null bytes, symlinks, and executable permissions.
+  - `src/octa/tutorials/packaging.py` — Enforced security quotas: 100 max file entries (`MAX_PACKAGE_FILE_COUNT`), 10 MB max compressed archive size (`MAX_PACKAGE_COMPRESSED_BYTES`), 25 MB max uncompressed size (`MAX_PACKAGE_EXPANDED_BYTES`), 5 MB max single file size (`MAX_PACKAGE_FILE_BYTES`), and 50:1 max compression ratio (`MAX_COMPRESSION_RATIO`) preventing compression bomb attacks.
+  - `src/octa/tutorials/packaging.py` — Forbade all executable and script file extensions (`.exe`, `.dll`, `.bat`, `.ps1`, `.py`, `.sh`, `.vbs`, etc.) from packages and source directories.
+  - `src/octa/tutorials/packaging.py` — Zero-extraction verification inspecting archive metadata, computing SHA-256 digests, and validating `plugin.json` manifests and `TaskDefinition` schemas directly in memory.
+  - `src/octa/__main__.py` — Integrated `octa pack <source_dir> [-o output] [--overwrite]` and `octa verify <package_path> [--verbose]` CLI subcommands with descriptive outputs and non-zero exit codes on failure while preserving full backward compatibility with GUI startup flags.
+  - `src/octa/tutorials/__init__.py` — Exported packaging functions, classes, and quota constants.
+  - `octa.spec` — Added `octa.tutorials.packaging` to hidden imports for frozen Windows distributions.
+  - `tests/unit/test_tutorial_packaging.py` — 18 unit tests covering valid packaging and verification roundtrips, default output path, overwrite enforcement, Zip Slip traversal rejection, absolute/drive path rejection, forbidden extension rejection, symlink/executable permission rejection, duplicate/case collision rejection, quota and anti-zip-bomb limits, missing/malformed manifests, schema validation, and CLI commands.
 - **Phase 8.3 — Accessibility Adaptations (2026-11-12)**
   - `src/octa/core/config.py`, `.env.example` — Added strongly-typed accessibility settings (`accessibility_high_contrast`, `accessibility_text_scale`, `accessibility_sound_cues`) with validation (text scale range 0.5 to 3.0) and environment loading (`OCTA_ACCESSIBILITY_*`).
   - `src/octa/intelligence/overlay.py` — Implemented high-contrast dual-stroke rendering (outer dark halo + inner vibrant yellow stroke) guaranteeing visibility on light and dark backgrounds. Added non-color shape indicators (L-shaped corner brackets for highlights, start-point target ring `O` for arrows, and shape badges `[■]` / `[▶]`). Added dynamic text scaling with font measurement to prevent clipping.

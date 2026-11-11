@@ -207,8 +207,34 @@
 
 ---
 
+## Phase 9 — Secure Tutorial Package Bundles & Plugin Manager *(in progress)*
+
+### Phase 9.1 — Secure Package Archive Format (`.octapack`) & CLI Tooling *(complete)*
+- [x] Compressed archive format specification (`.octapack` / ZIP container) holding `plugin.json` and tutorial definitions
+- [x] Safe inspection engine enforcing strict Zip Slip directory traversal prevention, path containment, and quotas (file count, size, compression ratio)
+- [x] Pure-Python CLI packager (`octa pack <plugin_dir> -o <bundle.octapack>`) and validator (`octa verify <bundle.octapack>`)
+- [x] Deterministic SHA-256 package digest generation and manifest verification
+- [x] Strict security guards: rejection of executables, scripts, symlinks, backslashes, absolute/drive paths, duplicate entries, and zip bombs
+- [x] 18 unit tests covering roundtrip packaging, malicious archives, quotas, and CLI subcommands (`tests/unit/test_tutorial_packaging.py`)
+
+### Phase 9.2 — Cryptographic Integrity, Trust Verification & Security Sandboxing
+- [ ] Digital signature verification (manifest signing) for author identity and tamper detection
+- [ ] Trust classification policy: Verified/Signed vs Unsigned Community packages
+- [ ] Strict rejection of corrupted, tampered, or path-escaping archives before disk extraction
+- [ ] Read-only unpack sandbox in isolated user plugin storage (`%LOCALAPPDATA%\OCTA\plugins\installed\`)
+
+### Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration
+- [ ] In-app Plugin Manager dialog (`PluginManagerDialog`) accessible from `DiagnosticWindow`
+- [ ] Visual listing of active tutorials and plugins with author, version, description, and trust badge
+- [ ] Safe package installation workflow (file picker -> pre-flight inspection modal -> consent confirmation -> extraction)
+- [ ] Safe uninstallation workflow removing package directories without affecting other plugins
+- [ ] Dynamic catalog synchronization (`tutorials_catalog_reloaded`) updating the tutorial selector without application restart
+
+---
+
 ## Future Ideas *(not scheduled)*
 
-- Plugin distribution tool & package manager (signed archive bundles for external tutorials)
-- Localization / multi-language support
-- Cloud sync for progress and preferences
+- In-app interactive tutorial authoring and recording assistant (visual step boundary and overlay creator)
+- Localization / multi-language support (i18n / l10n for UI, Godot prompts, and tutorial content)
+- Cloud sync for progress and preferences (deferred: preserve local-first, privacy-safe architecture)
+- Continuous/wake-word voice activation (deferred: preserve strict push-to-talk privacy boundary)

@@ -1,4 +1,4 @@
-"""Entry point for running OCTA via `python -m octa`."""
+"""Entry point for running OCTA via `python -m octa` or `octa` CLI."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from octa.core.logging import setup_logging
 from octa.desktop.application import OctaApplication
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse command-line arguments."""
+def create_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser with subcommands."""
     parser = argparse.ArgumentParser(
         prog="octa",
         description="OCTA — On-screen Companion Tutor & Assistant",
@@ -52,14 +52,76 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Path to an optional custom .env configuration file.",
     )
+
+    subparsers = parser.add_subparsers(dest="command", help="Optional CLI subcommands")
+
+    # pack subcommand
+    pack_parser = subparsers.add_parser(
+        "pack",
+        help="Pack an external tutorial plugin directory into a secure .octapack archive.",
+    )
+    pack_parser.add_argument(
+        "source_dir",
+        type=Path,
+        help="Directory containing plugin.json and tutorial definitions.",
+    )
+    pack_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="Target output archive path (default: <parent_dir>/<plugin_id>.octapack).",
+    )
+    pack_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        default=False,
+        help="Overwrite destination archive if it already exists.",
+    )
+
+    # verify subcommand
+    verify_parser = subparsers.add_parser(
+        "verify",
+        help="Inspect and verify an .octapack package without extracting.",
+    )
+    verify_parser.add_argument(
+        "package_path",
+        type=Path,
+        help="Path to the .octapack or zip archive.",
+    )
+    verify_parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        default=False,
+        help="Display all file entries in the archive.",
+    )
+
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = create_parser()
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None, *, run_event_loop: bool | None = None) -> int:
-    """Launch OCTA application."""
+    """Launch OCTA application or execute CLI subcommand."""
     if argv is None:
         argv = sys.argv[1:]
     args = parse_args(argv)
+
+    # Subcommand routing (Phase 9.1)
+    if args.command == "pack":
+        from octa.tutorials.packaging import run_pack_cli
+
+        return run_pack_cli(args)
+
+    if args.command == "verify":
+        from octa.tutorials.packaging import run_verify_cli
+
+        return run_verify_cli(args)
 
     # Honor CLI overrides for configuration
     overrides: dict[str, object] = {}

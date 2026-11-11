@@ -855,3 +855,49 @@ Implemented and verified Phase 8.3 — Accessibility Adaptations for OCTA:
 
 ### Next Step
 - Review and stage Phase 8.3 files when approved.
+
+---
+
+## Task: Phase 9.1 — Secure Tutorial Package Archive and CLI
+
+**Date:** 2026-11-12
+**Phase:** 9.1
+
+### Summary
+Implemented and verified Phase 9.1 — Secure Tutorial Package Archive and CLI for OCTA:
+1. Created `src/octa/tutorials/packaging.py` providing `.octapack` creation (`pack_tutorial_package`) and zero-extraction in-memory verification (`verify_tutorial_package`).
+2. Implemented strict untrusted archive validation: Zip Slip traversal rejection (`..`), absolute and drive path rejection, backslash and consecutive slash rejection, null byte detection, and case-collision prevention.
+3. Implemented quota defenses against denial-of-service and compression bombs: 100 max file entries (`MAX_PACKAGE_FILE_COUNT`), 10 MB max compressed archive size (`MAX_PACKAGE_COMPRESSED_BYTES`), 25 MB max expanded size (`MAX_PACKAGE_EXPANDED_BYTES`), 5 MB max file size (`MAX_PACKAGE_FILE_BYTES`), and 50:1 max compression ratio (`MAX_COMPRESSION_RATIO`).
+4. Enforced code execution prevention by forbidding all executable and script file extensions (`FORBIDDEN_EXTENSIONS`), symlinks, and executable permissions.
+5. Implemented atomic package creation via safe temporary files with pre-commit package verification before atomic replacement.
+6. Added `octa pack` and `octa verify` CLI subcommands to `src/octa/__main__.py` with structured feedback and non-zero exit codes on failure, while preserving full backward compatibility with GUI startup flags.
+7. Added 18 unit tests in `tests/unit/test_tutorial_packaging.py` covering roundtrips, traversal exploits, malformed manifests, missing tutorial definitions, quotas, compression bombs, and CLI subcommands.
+
+### Files Changed
+- `src/octa/tutorials/packaging.py` — Created. Secure package archive creation and verification subsystem.
+- `src/octa/tutorials/__init__.py` — Exported packaging functions, classes, and quota constants.
+- `src/octa/__main__.py` — Added `pack` and `verify` CLI subcommands.
+- `octa.spec` — Added `octa.tutorials.packaging` to hidden imports.
+- `tests/unit/test_tutorial_packaging.py` — Created. 18 unit tests.
+- `ROADMAP.md` — Updated Phase 9 status and marked Phase 9.1 complete.
+- `README.md` — Updated status, What Works Now, roadmap table, and test counts.
+- `CHANGELOG.md` — Added Phase 9.1 entry under [Unreleased].
+- `docs/architecture.md` — Documented package archive and CLI architecture.
+- `docs/PROGRESS.md` — Appended this progress entry.
+
+### Validation
+- **Packaging Test Suite**: Ran `pytest tests/unit/test_tutorial_packaging.py -v`: 18 passed.
+- **Packaging Distribution Test Suite**: Ran `pytest tests/unit/test_packaging.py -v`: 5 passed.
+- **Godot Enhanced Character Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_enhanced_character.gd`: 66 passed, 0 failed.
+- **Godot Protocol Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_ws_protocol.gd`: 13 passed, 0 failed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 362 passed, 1 skipped.
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 78 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 9.1 files when approved.
+- Proceed to Phase 9.2: Cryptographic Integrity, Trust Verification & Security Sandboxing.

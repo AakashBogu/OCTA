@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 8.3 — Accessibility Adaptations (complete)
+**Status:** 🟢 Phase 9.1 — Secure Tutorial Package Archive & CLI (complete)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), and Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation) are implemented and verified.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation), and Phase 9.1 (Secure tutorial package archive format `.octapack`, CLI packager and zero-extraction verifier, Zip Slip defense, and quota enforcement) are implemented and verified.
 
 ---
 
@@ -118,6 +118,14 @@ OCTA currently includes eleven verified subsystems:
 - **Optional Audio Playback:** `TutorialSoundPlayer` plays the completion chime on tutorial completion while strictly respecting user audio preferences and disabled audio settings.
 - **Qt Accessibility & Keyboard Navigation:** Complete accessible names and descriptions (`setAccessibleName`, `setAccessibleDescription`), keyboard focus policies (`StrongFocus`), and logical tab order navigation across `DiagnosticWindow` and `TutorialFeedbackDialog`.
 
+### 12. Phase 9.1 Secure Tutorial Package Archive & CLI (`src/octa/tutorials/packaging.py`, `src/octa/__main__.py`)
+- **Compressed Package Archive (`.octapack`):** Standard ZIP container holding `plugin.json`, referenced tutorial definitions, and safe documentation. Atomic archive creation via temporary files (`pack_tutorial_package`).
+- **Zero-Extraction In-Memory Verification (`verify_tutorial_package`):** Pure-inspection verifier inspecting archive headers and parsing manifest and task definitions in memory without extracting any files to disk.
+- **Strict Zip Slip Defense:** Rejects path traversal (`..`), absolute paths, Windows drive paths, null bytes, backslashes, and consecutive slashes across all archive entries.
+- **Quota & Anti-Zip-Bomb Enforcement:** Enforces maximum entry counts (100 files), maximum compressed archive size (10 MB), maximum expanded size (25 MB), maximum file size (5 MB), and compression ratios ($\le 50:1$).
+- **Code Execution & Symlink Prevention:** Forbids all script and binary extensions (`.exe`, `.dll`, `.bat`, `.ps1`, `.py`, `.sh`, `.vbs`, etc.), symlinks, and executable permissions.
+- **CLI Packaging & Verification Commands:** Built-in subcommands `octa pack <plugin_dir> -o <out.octapack>` and `octa verify <pkg.octapack>` (`--verbose`) with clear diagnostics and non-zero exit codes for invalid inputs.
+
 ---
 
 ## Proposed Architecture
@@ -176,12 +184,15 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 8.1 | External tutorial plugin system | ✅ Complete |
 | 8.2 | Multi-monitor geometry & display adaptation | ✅ Complete |
 | 8.3 | Accessibility adaptations | ✅ Complete |
+| 9.1 | Secure tutorial package archive & CLI | ✅ Complete |
+| 9.2 | Cryptographic integrity & trust model | 📋 Planned |
+| 9.3 | Desktop plugin manager UI & catalog sync | 📋 Planned |
 
 ---
 
 ## Development Status
 
-- **Current phase:** Phase 8.3 Complete — Accessibility Adaptations implemented, documented, and verified with high-contrast dual-stroke cues, non-color shape indicators, text scaling, optional in-memory completion audio chime, and Qt keyboard navigation.
+- **Current phase:** Phase 9.1 Complete — Secure Tutorial Package Archive (`.octapack`) & CLI implemented and verified with atomic packager, zero-extraction verifier, Zip Slip defense, and quota enforcement.
 - **What exists:**
   - Runnable Godot 4.7 project with transparent borderless desktop overlay, articulated 3D character, 6 animations, `AnimationTree` state machine, 100% procedural assets under MIT license (`ASSETS_LICENSE.md`), and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
@@ -192,8 +203,9 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
   - Phase 8.1 External Tutorial Plugin System (`src/octa/tutorials/plugins.py`, `catalog.py`) with `plugin.json` discovery, strict schema validation, security sandboxing against path traversal and symlink escapes, ID collision protection against shadowing built-ins, secret-safe diagnostic reporting, dynamic reload, and provenance integration in `DiagnosticWindow`.
   - Phase 8.2 Multi-Monitor Geometry & Display Adaptation (`src/octa/intelligence/display.py`) with `DisplayManager` monitor discovery, negative desktop coordinates, global-to-local coordinate transformations, DPI scaling, monitor selection in `DiagnosticWindow`, and dynamic disconnect handling.
   - Phase 8.3 Accessibility Adaptations (`src/octa/intelligence/overlay.py`, `src/octa/tutorials/sound.py`) with high-contrast dual-stroke cues, non-color shape indicators, dynamic text scaling (0.5x to 3.0x), in-memory harmonic completion chime synthesis, optional audio player, accessible Qt labeling, and keyboard focus policies.
-  - Full automated test suite: 344 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
-- **What does not exist yet:** Wake-word detection (explicitly deferred), cloud sync for progress, and external plugin distribution manager.
+  - Phase 9.1 Secure Tutorial Package Archive & CLI (`src/octa/tutorials/packaging.py`, `src/octa/__main__.py`) with atomic `.octapack` creation (`octa pack`), zero-extraction in-memory verification (`octa verify`), strict Zip Slip traversal rejection, executable/script exclusion, and quota checks (100 files, 10 MB compressed, 25 MB expanded, $\le 50:1$ compression ratio).
+  - Full automated test suite: 362 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
+- **What does not exist yet:** Wake-word detection (explicitly deferred), cloud sync for progress, and external plugin manager UI (Phase 9.3).
 
 ---
 

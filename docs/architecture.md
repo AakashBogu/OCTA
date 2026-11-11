@@ -345,6 +345,7 @@ When loaded via `AppConfig.load(...)`, values are resolved with the following pr
 | External Tutorial Plugin System | ✅ Implemented (Phase 8.1) | `octa.tutorials.plugins` (sandboxed manifests, path containment, dynamic reload) |
 | Multi-Monitor Geometry & Display Adaptation | ✅ Implemented (Phase 8.2) | `octa.intelligence.display` (`DisplayManager`, `DisplayInfo`, negative coords, per-monitor overlay/capture) |
 | Accessibility Adaptations | ✅ Implemented (Phase 8.3) | `octa.intelligence.overlay` (dual-stroke high contrast, non-color cues, text scaling), `octa.tutorials.sound` (in-memory harmonic chime), Qt a11y labels & keyboard nav |
+| Tutorial Package Archive & CLI | ✅ Implemented (Phase 9.1) | `octa.tutorials.packaging` (`.octapack` format, atomic packager, zero-extraction verifier, Zip Slip defense, quotas) |
 
 ---
 
@@ -958,3 +959,80 @@ OCTA Phase 8.3 introduces comprehensive accessibility adaptations across the vis
    - `Qt.FocusPolicy.StrongFocus` is assigned to all interactive inputs, buttons, and combo selectors.
    - An explicit, logical keyboard tab order (`QWidget.setTabOrder`) chains controls from the tutorial selector down to log views.
    - Standard keyboard shortcuts (e.g. `Alt+F` for feedback) provide fast, mouse-free workflow execution.
+
+---
+
+## Phase 9.1 — Secure Tutorial Package Archive & CLI Architecture
+
+### Overview
+
+OCTA Phase 9.1 introduces a portable, hardened package archive container (`.octapack`) for distributing external tutorial packs, accompanied by CLI commands (`octa pack` and `octa verify`) built exclusively with the Python standard library.
+
+```
+┌────────────────────────────────────────────────────────┐
+│                   Source Directory                     │
+│  - plugin.json                                         │
+│  - tutorials/*.json                                    │
+│  - README.md                                           │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+             pack_tutorial_package()
+             • Pre-scan directory for forbidden extensions
+             • Validate manifest & task schemas
+             • Enforce quota thresholds
+             • Write to atomic temporary file
+             • Verify temporary archive
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│                 .octapack Package Archive              │
+│  - Standard ZIP-DEFLATED container                     │
+│  - Forward-slash relative paths                        │
+│  - Standard 0o644 non-executable file permissions      │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+             verify_tutorial_package()
+             • Zero-extraction in-memory inspection
+             • Zip Slip traversal & backslash rejection
+             • Quota & anti-zip-bomb verification
+             • Manifest & TaskDefinition schema parsing
+             • Compute SHA-256 package digest
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│               PackageVerificationResult                │
+│  - is_valid: bool                                      │
+│  - plugin_id, name, version                            │
+│  - file_count, compressed/uncompressed sizes           │
+│  - sha256_digest: str                                  │
+│  - errors: tuple[str, ...]                             │
+└────────────────────────────────────────────────────────┘
+```
+
+### Key Architectural Components
+
+1. **Untrusted Archive Threat Model**:
+   - Tutorial packages are treated as untrusted data from potentially hostile sources.
+   - All validation occurs prior to disk extraction; `verify_tutorial_package` reads archive headers, entry metadata, and JSON payloads entirely in memory.
+
+2. **Zip Slip & Path Traversal Prevention**:
+   - Rejects directory traversal parts (`..`), parent escapes, and relative component evasions.
+   - Rejects absolute paths (`/`) and Windows drive letters (`C:`, `D:`).
+   - Rejects backslash (`\`) and consecutive forward slashes (`//`). Standard single forward slashes (`/`) are strictly enforced.
+   - Rejects duplicate, ambiguous, or case-insensitive colliding entries (e.g., `plugin.json` and `PLUGIN.JSON`).
+
+3. **Quota & Compression Bomb Defense**:
+   - **File Count Limit**: Maximum 100 entries (`MAX_PACKAGE_FILE_COUNT`).
+   - **Compressed Archive Size**: Maximum 10 MB on disk (`MAX_PACKAGE_COMPRESSED_BYTES`).
+   - **Expanded Archive Size**: Maximum 25 MB total uncompressed content (`MAX_PACKAGE_EXPANDED_BYTES`).
+   - **Individual File Size**: Maximum 5 MB per file (`MAX_PACKAGE_FILE_BYTES`).
+   - **Compression Ratio**: Maximum 50:1 uncompressed-to-compressed ratio (`MAX_COMPRESSION_RATIO`) per entry to defeat zip bombs.
+
+4. **Code Execution & Symlink Prevention**:
+   - Complete prohibition of executable and script extensions (`FORBIDDEN_EXTENSIONS`: `.exe`, `.dll`, `.bat`, `.cmd`, `.ps1`, `.py`, `.sh`, `.vbs`, etc.).
+   - Symlinks and hardlinks in ZIP metadata (`stat.S_ISLNK`) are strictly rejected.
+   - Executable permissions (`0o111`) are rejected; packager enforces regular file mode `0o644`.
+
+5. **Atomic Package Assembly & CLI Subcommands**:
+   - `pack_tutorial_package()` builds packages atomically via `tempfile.mkstemp` in the target directory and verifies the temporary archive with `verify_tutorial_package()` before committing it via `os.replace`.
+   - `src/octa/__main__.py` routes subcommands `pack` and `verify` to standalone console handlers, providing formatted terminal feedback and non-zero exit codes on failure without loading the GUI event loop.
