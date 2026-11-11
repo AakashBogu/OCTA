@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
-from PySide6.QtCore import Slot
+from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QGroupBox,
@@ -81,14 +83,35 @@ class TutorialFeedbackDialog(QDialog):
 
         # Buttons
         btn_layout = QHBoxLayout()
-        self._btn_submit = QPushButton("Submit Feedback", self)
-        self._btn_cancel = QPushButton("Cancel", self)
+        self._btn_submit = QPushButton("&Submit Feedback", self)
+        self._btn_cancel = QPushButton("&Cancel", self)
         self._btn_submit.clicked.connect(self.accept)
         self._btn_cancel.clicked.connect(self.reject)
         btn_layout.addStretch(1)
         btn_layout.addWidget(self._btn_cancel)
         btn_layout.addWidget(self._btn_submit)
         layout.addLayout(btn_layout)
+
+        # Accessibility and keyboard navigation
+        self._combo_rating.setAccessibleName("Tutorial Rating")
+        self._combo_rating.setAccessibleDescription(
+            "Select a score from 1 (Confusing) to 5 (Excellent)"
+        )
+        self._combo_difficulty.setAccessibleName("Step Difficulty")
+        self._combo_difficulty.setAccessibleDescription(
+            "Select perceived difficulty: Just Right, Easy, or Challenging"
+        )
+        self._txt_comment.setAccessibleName("Feedback Comments")
+        self._txt_comment.setAccessibleDescription(
+            "Optional user comments or suggestions about the tutorial step"
+        )
+        self._btn_submit.setAccessibleName("Submit Feedback")
+        self._btn_cancel.setAccessibleName("Cancel Feedback")
+
+        self.setTabOrder(self._combo_rating, self._combo_difficulty)
+        self.setTabOrder(self._combo_difficulty, self._txt_comment)
+        self.setTabOrder(self._txt_comment, self._btn_submit)
+        self.setTabOrder(self._btn_submit, self._btn_cancel)
 
     def get_rating(self) -> int:
         """Return selected rating from 1 to 5."""
@@ -119,12 +142,14 @@ class DiagnosticWindow(QWidget):
         self._tray_enabled = tray_enabled
 
         self.setWindowTitle("OCTA — Companion Diagnostic Monitor")
-        self.resize(580, 480)
-        self.setMinimumSize(450, 360)
+        self.resize(600, 560)
+        self.setMinimumSize(480, 420)
+        self._current_text_scale = float(self._controller.accessibility_text_scale)
 
         self._build_ui()
         self._connect_signals()
         self._refresh_all()
+        self.apply_text_scale(self._current_text_scale)
 
     def _build_ui(self) -> None:
         """Construct window layout and child widgets."""
@@ -133,8 +158,8 @@ class DiagnosticWindow(QWidget):
         main_layout.setSpacing(10)
 
         # ── Status Group ─────────────────────────────────────
-        status_group = QGroupBox("Status & Diagnostics", self)
-        status_layout = QVBoxLayout(status_group)
+        self._status_group = QGroupBox("Status & Diagnostics", self)
+        status_layout = QVBoxLayout(self._status_group)
         status_layout.setSpacing(6)
 
         self._lbl_process = QLabel("Process: STOPPED", self)
@@ -156,16 +181,16 @@ class DiagnosticWindow(QWidget):
             lbl.setFont(label_font)
             status_layout.addWidget(lbl)
 
-        main_layout.addWidget(status_group)
+        main_layout.addWidget(self._status_group)
 
         # ── Action Buttons ───────────────────────────────────
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(8)
 
-        self._btn_start = QPushButton("Start Companion", self)
-        self._btn_stop = QPushButton("Stop Companion", self)
-        self._btn_restart = QPushButton("Restart", self)
-        self._btn_clear = QPushButton("Clear Log", self)
+        self._btn_start = QPushButton("&Start Companion", self)
+        self._btn_stop = QPushButton("S&top Companion", self)
+        self._btn_restart = QPushButton("&Restart", self)
+        self._btn_clear = QPushButton("&Clear Log", self)
 
         self._btn_start.clicked.connect(self._controller.start)
         self._btn_stop.clicked.connect(self._controller.stop)
@@ -179,8 +204,8 @@ class DiagnosticWindow(QWidget):
         main_layout.addLayout(btn_layout)
 
         # ── Voice Interaction (Push-to-Talk) ─────────────────
-        voice_group = QGroupBox("Voice Interaction (Push-to-Talk Only)", self)
-        voice_layout = QVBoxLayout(voice_group)
+        self._voice_group = QGroupBox("Voice Interaction (Push-to-Talk Only)", self)
+        voice_layout = QVBoxLayout(self._voice_group)
         voice_layout.setSpacing(6)
 
         self._lbl_voice_providers = QLabel(
@@ -208,9 +233,9 @@ class DiagnosticWindow(QWidget):
         voice_btn_layout = QHBoxLayout()
         voice_btn_layout.setSpacing(8)
 
-        self._btn_ptt = QPushButton("Push to Talk", self)
-        self._btn_read_aloud = QPushButton("Read Instruction Aloud", self)
-        self._btn_voice_cancel = QPushButton("Stop / Cancel Voice", self)
+        self._btn_ptt = QPushButton("&Push to Talk", self)
+        self._btn_read_aloud = QPushButton("&Read Instruction Aloud", self)
+        self._btn_voice_cancel = QPushButton("Stop / &Cancel Voice", self)
 
         self._btn_ptt.clicked.connect(self._on_ptt_clicked)
         self._btn_read_aloud.clicked.connect(self._on_read_aloud_clicked)
@@ -221,11 +246,11 @@ class DiagnosticWindow(QWidget):
         voice_btn_layout.addWidget(self._btn_voice_cancel)
         voice_layout.addLayout(voice_btn_layout)
 
-        main_layout.addWidget(voice_group)
+        main_layout.addWidget(self._voice_group)
 
         # ── Tutorial Guide & Progress Verification (Phase 6.0) ─
-        tutorial_group = QGroupBox("Tutorial Guide & Progress Verification", self)
-        tutorial_layout = QVBoxLayout(tutorial_group)
+        self._tutorial_group = QGroupBox("Tutorial Guide & Progress Verification", self)
+        tutorial_layout = QVBoxLayout(self._tutorial_group)
         tutorial_layout.setSpacing(6)
 
         selector_row = QHBoxLayout()
@@ -235,7 +260,7 @@ class DiagnosticWindow(QWidget):
         self._combo_tutorial = QComboBox(self)
         self._populate_tutorial_combo()
         self._combo_tutorial.currentIndexChanged.connect(self._on_tutorial_combo_changed)
-        self._btn_reset_tutorial = QPushButton("Reset Tutorial", self)
+        self._btn_reset_tutorial = QPushButton("&Reset Tutorial", self)
         self._btn_reset_tutorial.clicked.connect(self._on_reset_tutorial_clicked)
 
         selector_row.addWidget(selector_label)
@@ -271,10 +296,10 @@ class DiagnosticWindow(QWidget):
 
         step_nav_layout = QHBoxLayout()
         step_nav_layout.setSpacing(8)
-        self._btn_prev_step = QPushButton("Previous Step", self)
-        self._btn_next_step = QPushButton("Next Step", self)
-        self._btn_hint = QPushButton("Show Hint", self)
-        self._btn_complete_manual = QPushButton("Complete Step (Text Flow)", self)
+        self._btn_prev_step = QPushButton("&Previous Step", self)
+        self._btn_next_step = QPushButton("&Next Step", self)
+        self._btn_hint = QPushButton("Show &Hint", self)
+        self._btn_complete_manual = QPushButton("&Complete Step (Text Flow)", self)
 
         self._btn_prev_step.clicked.connect(self._on_prev_step_clicked)
         self._btn_next_step.clicked.connect(self._on_next_step_clicked)
@@ -305,11 +330,54 @@ class DiagnosticWindow(QWidget):
         verify_btn_layout.addWidget(self._btn_feedback)
         tutorial_layout.addLayout(verify_btn_layout)
 
-        main_layout.addWidget(tutorial_group)
+        main_layout.addWidget(self._tutorial_group)
+
+        # ── Accessibility Adaptations (Phase 8.3) ────────────
+        self._a11y_group = QGroupBox("Accessibility & Display Adaptations", self)
+        a11y_layout = QVBoxLayout(self._a11y_group)
+        a11y_layout.setSpacing(6)
+
+        a11y_row1 = QHBoxLayout()
+        a11y_row1.setSpacing(12)
+
+        self._chk_high_contrast = QCheckBox("&High-Contrast Overlay Cues", self)
+        self._chk_high_contrast.setChecked(self._controller.accessibility_high_contrast)
+        self._chk_high_contrast.toggled.connect(self._on_high_contrast_toggled)
+
+        self._chk_sound_cues = QCheckBox("Tutorial Completion &Audio Chime", self)
+        self._chk_sound_cues.setChecked(self._controller.accessibility_sound_cues)
+        self._chk_sound_cues.toggled.connect(self._on_sound_cues_toggled)
+
+        self._btn_test_sound = QPushButton("&Test Audio Cue", self)
+        self._btn_test_sound.clicked.connect(self._on_test_sound_clicked)
+
+        a11y_row1.addWidget(self._chk_high_contrast)
+        a11y_row1.addWidget(self._chk_sound_cues)
+        a11y_row1.addWidget(self._btn_test_sound)
+        a11y_row1.addStretch(1)
+        a11y_layout.addLayout(a11y_row1)
+
+        a11y_row2 = QHBoxLayout()
+        a11y_row2.setSpacing(8)
+        self._lbl_text_size = QLabel("Text Size:", self)
+        self._lbl_text_size.setFont(label_font)
+        self._combo_text_size = QComboBox(self)
+        self._combo_text_size.addItem("Normal (100%)", 1.0)
+        self._combo_text_size.addItem("Medium (125%)", 1.25)
+        self._combo_text_size.addItem("Large (150%)", 1.5)
+        self._combo_text_size.addItem("Extra Large (200%)", 2.0)
+        self._sync_text_size_combo()
+        self._combo_text_size.currentIndexChanged.connect(self._on_text_size_combo_changed)
+
+        a11y_row2.addWidget(self._lbl_text_size)
+        a11y_row2.addWidget(self._combo_text_size, stretch=1)
+        a11y_layout.addLayout(a11y_row2)
+
+        main_layout.addWidget(self._a11y_group)
 
         # ── Activity & Error Log ─────────────────────────────
-        log_group = QGroupBox("Activity & Diagnostics Log", self)
-        log_layout = QVBoxLayout(log_group)
+        self._log_group = QGroupBox("Activity & Diagnostics Log", self)
+        log_layout = QVBoxLayout(self._log_group)
         log_layout.setContentsMargins(8, 8, 8, 8)
 
         self._log_view = QPlainTextEdit(self)
@@ -320,7 +388,9 @@ class DiagnosticWindow(QWidget):
         self._log_view.setFont(log_font)
 
         log_layout.addWidget(self._log_view)
-        main_layout.addWidget(log_group, stretch=1)
+        main_layout.addWidget(self._log_group, stretch=1)
+
+        self._setup_accessibility()
 
     def _connect_signals(self) -> None:
         """Connect to controller signals for live updates."""
@@ -341,6 +411,220 @@ class DiagnosticWindow(QWidget):
         self._controller.tutorials_catalog_reloaded.connect(self._populate_tutorial_combo)
         self._controller.displays_changed.connect(self._on_displays_changed)
         self._controller.active_display_changed.connect(self._on_active_display_changed)
+        self._controller.accessibility_changed.connect(self._on_accessibility_changed)
+        self._controller.tutorial_completed.connect(self._on_tutorial_completed)
+
+    def _setup_accessibility(self) -> None:
+        """Configure accessible names, descriptions, focus policies, and tab navigation."""
+        # Accessible names & descriptions
+        self._btn_start.setAccessibleName("Start Companion")
+        self._btn_start.setAccessibleDescription("Launch the Godot desktop companion window")
+        self._btn_stop.setAccessibleName("Stop Companion")
+        self._btn_stop.setAccessibleDescription("Shut down the Godot companion process")
+        self._btn_restart.setAccessibleName("Restart Companion")
+        self._btn_restart.setAccessibleDescription("Stop and restart the Godot companion process")
+        self._btn_clear.setAccessibleName("Clear Log")
+        self._btn_clear.setAccessibleDescription("Clear the diagnostic activity log")
+
+        self._btn_ptt.setAccessibleName("Push to Talk")
+        self._btn_ptt.setAccessibleDescription("Activate microphone recording while pressed")
+        self._btn_read_aloud.setAccessibleName("Read Instruction Aloud")
+        self._btn_read_aloud.setAccessibleDescription(
+            "Synthesize and speak the current tutorial instruction"
+        )
+        self._btn_voice_cancel.setAccessibleName("Stop Voice")
+        self._btn_voice_cancel.setAccessibleDescription(
+            "Cancel active speech recognition or speech output"
+        )
+
+        self._combo_tutorial.setAccessibleName("Tutorial Selector")
+        self._combo_tutorial.setAccessibleDescription(
+            "Choose active tutorial from built-in or plugin tutorials"
+        )
+        self._btn_reset_tutorial.setAccessibleName("Reset Tutorial")
+        self._btn_reset_tutorial.setAccessibleDescription(
+            "Reset the active tutorial back to step 1"
+        )
+        self._combo_monitor.setAccessibleName("Monitor Selector")
+        self._combo_monitor.setAccessibleDescription(
+            "Select which display monitor is targeted for captures and overlay cues"
+        )
+
+        self._btn_prev_step.setAccessibleName("Previous Step")
+        self._btn_prev_step.setAccessibleDescription("Navigate back to the previous tutorial step")
+        self._btn_next_step.setAccessibleName("Next Step")
+        self._btn_next_step.setAccessibleDescription("Navigate forward to the next tutorial step")
+        self._btn_hint.setAccessibleName("Show Hint")
+        self._btn_hint.setAccessibleDescription(
+            "Display hint and visual overlay for current tutorial step"
+        )
+        self._btn_complete_manual.setAccessibleName("Complete Step Manually")
+        self._btn_complete_manual.setAccessibleDescription(
+            "Mark current step as completed without AI verification"
+        )
+        self._btn_verify_ai.setAccessibleName("Verify Step with AI")
+        self._btn_verify_ai.setAccessibleDescription(
+            "Capture screen and verify completion using multimodal AI"
+        )
+        self._btn_toggle_overlay.setAccessibleName("Toggle Visual Overlay")
+        self._btn_toggle_overlay.setAccessibleDescription(
+            "Show or hide the transparent desktop guidance overlay"
+        )
+        self._btn_cancel_verify.setAccessibleName("Cancel Verification")
+        self._btn_cancel_verify.setAccessibleDescription("Cancel in-flight background verification")
+        self._btn_feedback.setAccessibleName("Give Tutorial Feedback")
+        self._btn_feedback.setAccessibleDescription(
+            "Open rating and feedback dialog for active step"
+        )
+        self._btn_feedback.setShortcut("Alt+F")
+        self._btn_verify_ai.setShortcut("Alt+V")
+
+        self._chk_high_contrast.setAccessibleName("High-Contrast Overlay Cues")
+        self._chk_high_contrast.setAccessibleDescription(
+            "Enable dual-stroke outlines and shape indicators on visual overlay cues"
+        )
+        self._chk_sound_cues.setAccessibleName("Tutorial Completion Sound Cues")
+        self._chk_sound_cues.setAccessibleDescription(
+            "Play an ascending audio chime when a tutorial is completed"
+        )
+        self._btn_test_sound.setAccessibleName("Test Audio Chime")
+        self._btn_test_sound.setAccessibleDescription("Play a test audio completion chime")
+        self._combo_text_size.setAccessibleName("Text Size Scaling")
+        self._combo_text_size.setAccessibleDescription(
+            "Adjust font size scaling across the interface and overlay"
+        )
+        self._log_view.setAccessibleName("Activity and Diagnostics Log")
+        self._log_view.setAccessibleDescription(
+            "Live log output of companion, server, and tutorial events"
+        )
+
+        # Focus policies
+        for interactive_widget in (
+            self._btn_start,
+            self._btn_stop,
+            self._btn_restart,
+            self._btn_clear,
+            self._btn_ptt,
+            self._btn_read_aloud,
+            self._btn_voice_cancel,
+            self._combo_tutorial,
+            self._btn_reset_tutorial,
+            self._combo_monitor,
+            self._btn_prev_step,
+            self._btn_next_step,
+            self._btn_hint,
+            self._btn_complete_manual,
+            self._btn_verify_ai,
+            self._btn_toggle_overlay,
+            self._btn_cancel_verify,
+            self._btn_feedback,
+            self._chk_high_contrast,
+            self._chk_sound_cues,
+            self._btn_test_sound,
+            self._combo_text_size,
+            self._log_view,
+        ):
+            interactive_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        # Tab order
+        self.setTabOrder(self._btn_start, self._btn_stop)
+        self.setTabOrder(self._btn_stop, self._btn_restart)
+        self.setTabOrder(self._btn_restart, self._btn_clear)
+        self.setTabOrder(self._btn_clear, self._btn_ptt)
+        self.setTabOrder(self._btn_ptt, self._btn_read_aloud)
+        self.setTabOrder(self._btn_read_aloud, self._btn_voice_cancel)
+        self.setTabOrder(self._btn_voice_cancel, self._combo_tutorial)
+        self.setTabOrder(self._combo_tutorial, self._btn_reset_tutorial)
+        self.setTabOrder(self._btn_reset_tutorial, self._combo_monitor)
+        self.setTabOrder(self._combo_monitor, self._btn_prev_step)
+        self.setTabOrder(self._btn_prev_step, self._btn_next_step)
+        self.setTabOrder(self._btn_next_step, self._btn_hint)
+        self.setTabOrder(self._btn_hint, self._btn_complete_manual)
+        self.setTabOrder(self._btn_complete_manual, self._btn_verify_ai)
+        self.setTabOrder(self._btn_verify_ai, self._btn_toggle_overlay)
+        self.setTabOrder(self._btn_toggle_overlay, self._btn_cancel_verify)
+        self.setTabOrder(self._btn_cancel_verify, self._btn_feedback)
+        self.setTabOrder(self._btn_feedback, self._chk_high_contrast)
+        self.setTabOrder(self._chk_high_contrast, self._chk_sound_cues)
+        self.setTabOrder(self._chk_sound_cues, self._btn_test_sound)
+        self.setTabOrder(self._btn_test_sound, self._combo_text_size)
+        self.setTabOrder(self._combo_text_size, self._log_view)
+
+    def apply_text_scale(self, scale: float) -> None:
+        """Scale font sizes across diagnostic window elements dynamically."""
+        clamped = max(0.5, min(3.0, float(scale)))
+        self._current_text_scale = clamped
+
+        base_pt = max(8, int(round(10.0 * clamped)))
+        log_pt = max(7, int(round(9.0 * clamped)))
+        header_pt = max(9, int(round(11.0 * clamped)))
+
+        label_font = QFont()
+        label_font.setPointSize(base_pt)
+
+        header_font = QFont()
+        header_font.setPointSize(header_pt)
+        header_font.setBold(True)
+
+        for group in (
+            self._status_group,
+            self._voice_group,
+            self._tutorial_group,
+            self._a11y_group,
+            self._log_group,
+        ):
+            group.setFont(header_font)
+
+        for lbl in (
+            self._lbl_process,
+            self._lbl_server,
+            self._lbl_url,
+            self._lbl_client,
+            self._lbl_robot,
+            self._lbl_voice_providers,
+            self._lbl_mic_status,
+            self._lbl_voice_state,
+            self._lbl_instruction,
+            self._lbl_tutorial_status,
+            self._lbl_verification_status,
+            self._lbl_text_size,
+        ):
+            lbl.setFont(label_font)
+
+        for btn in (
+            self._btn_start,
+            self._btn_stop,
+            self._btn_restart,
+            self._btn_clear,
+            self._btn_ptt,
+            self._btn_read_aloud,
+            self._btn_voice_cancel,
+            self._btn_reset_tutorial,
+            self._btn_prev_step,
+            self._btn_next_step,
+            self._btn_hint,
+            self._btn_complete_manual,
+            self._btn_verify_ai,
+            self._btn_toggle_overlay,
+            self._btn_cancel_verify,
+            self._btn_feedback,
+            self._btn_test_sound,
+        ):
+            btn.setFont(label_font)
+
+        for combo in (self._combo_tutorial, self._combo_monitor, self._combo_text_size):
+            combo.setFont(label_font)
+
+        self._chk_high_contrast.setFont(label_font)
+        self._chk_sound_cues.setFont(label_font)
+
+        log_font = QFont("Consolas", log_pt)
+        log_font.setStyleHint(QFont.StyleHint.Monospace)
+        self._log_view.setFont(log_font)
+
+        min_w = int(round(480 * max(1.0, clamped * 0.85)))
+        min_h = int(round(420 * max(1.0, clamped * 0.85)))
+        self.setMinimumSize(min_w, min_h)
 
     # ──────────────────────────────────────────
     # UI Update Slots
@@ -656,6 +940,71 @@ class DiagnosticWindow(QWidget):
                 "INFO",
             )
 
+    @Slot(bool)
+    def _on_high_contrast_toggled(self, checked: bool) -> None:
+        self._controller.set_high_contrast(checked)
+
+    @Slot(bool)
+    def _on_sound_cues_toggled(self, checked: bool) -> None:
+        self._controller.set_sound_cues_enabled(checked)
+
+    @Slot()
+    def _on_test_sound_clicked(self) -> None:
+        played = self._controller.play_completion_sound_cue()
+        if not played:
+            self._append_log(
+                "Test audio chime skipped (sound cues disabled or unavailable).",
+                "INFO",
+            )
+
+    @Slot(int)
+    def _on_text_size_combo_changed(self, index: int) -> None:
+        if index < 0:
+            return
+        scale_val = self._combo_text_size.itemData(index)
+        if isinstance(scale_val, (int, float)):
+            self.apply_text_scale(float(scale_val))
+            self._controller.set_text_scale(float(scale_val))
+
+    def _sync_text_size_combo(self) -> None:
+        current_scale = self._controller.accessibility_text_scale
+        best_idx = 0
+        min_diff = 999.0
+        for i in range(self._combo_text_size.count()):
+            val = float(self._combo_text_size.itemData(i))
+            diff = abs(val - current_scale)
+            if diff < min_diff:
+                min_diff = diff
+                best_idx = i
+        self._combo_text_size.blockSignals(True)
+        self._combo_text_size.setCurrentIndex(best_idx)
+        self._combo_text_size.blockSignals(False)
+
+    @Slot(bool, float, bool)
+    def _on_accessibility_changed(
+        self,
+        high_contrast: bool,
+        text_scale: float,
+        sound_cues: bool,
+    ) -> None:
+        if self._chk_high_contrast.isChecked() != high_contrast:
+            self._chk_high_contrast.blockSignals(True)
+            self._chk_high_contrast.setChecked(high_contrast)
+            self._chk_high_contrast.blockSignals(False)
+
+        if self._chk_sound_cues.isChecked() != sound_cues:
+            self._chk_sound_cues.blockSignals(True)
+            self._chk_sound_cues.setChecked(sound_cues)
+            self._chk_sound_cues.blockSignals(False)
+
+        if abs(self._current_text_scale - text_scale) > 1e-4:
+            self._sync_text_size_combo()
+            self.apply_text_scale(text_scale)
+
+    @Slot(str, str)
+    def _on_tutorial_completed(self, task_id: str, title: str) -> None:
+        self._append_log(f"Tutorial '{title}' ({task_id}) marked complete!", "INFO")
+
     @Slot()
     def _on_ptt_clicked(self) -> None:
         """Toggle push-to-talk recording from an explicit user button click."""
@@ -676,9 +1025,25 @@ class DiagnosticWindow(QWidget):
             self._update_voice_display()
 
     @Slot(str, str, str)
-    def _append_log(self, timestamp: str, message: str, level: str) -> None:
-        # Guarantee auth token is never rendered
-        entry = f"[{timestamp}] [{level}] {message}"
+    def _append_log(
+        self,
+        timestamp_or_msg: str,
+        message: str = "",
+        level: str = "INFO",
+    ) -> None:
+        if not message:
+            ts = datetime.now().strftime("%H:%M:%S")
+            msg = timestamp_or_msg
+            lvl = level
+        elif level == "INFO" and message in {"INFO", "WARNING", "ERROR", "DEBUG"}:
+            ts = datetime.now().strftime("%H:%M:%S")
+            msg = timestamp_or_msg
+            lvl = message
+        else:
+            ts = timestamp_or_msg
+            msg = message
+            lvl = level
+        entry = f"[{ts}] [{lvl}] {msg}"
         self._log_view.appendPlainText(entry)
 
     def _clear_log(self) -> None:
@@ -765,3 +1130,16 @@ class DiagnosticWindow(QWidget):
     def get_monitor_combo_items(self) -> list[str]:
         """Return list of text labels in the monitor selection combo box."""
         return [self._combo_monitor.itemText(i) for i in range(self._combo_monitor.count())]
+
+    def is_high_contrast_checked(self) -> bool:
+        """Return True if high-contrast checkbox is checked."""
+        return self._chk_high_contrast.isChecked()
+
+    def is_sound_cues_checked(self) -> bool:
+        """Return True if tutorial completion audio chime checkbox is checked."""
+        return self._chk_sound_cues.isChecked()
+
+    def get_selected_text_scale(self) -> float:
+        """Return current text scaling factor from the UI selector."""
+        data = self._combo_text_size.currentData()
+        return float(data) if data is not None else 1.0

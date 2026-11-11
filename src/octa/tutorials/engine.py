@@ -60,6 +60,7 @@ from octa.tutorials.plugins import (
     LoadedTutorialPlugin,
     PluginDiscoveryResult,
 )
+from octa.tutorials.sound import TutorialSoundPlayer
 from octa.voice.controller import VoiceInteractionController, build_default_companion_task
 
 logger = logging.getLogger("octa.tutorials.engine")
@@ -150,6 +151,7 @@ class TutorialEngine(QObject):
         tutorials: Sequence[TaskDefinition] | None = None,
         overlay_enabled: bool = False,
         feedback_collector: FeedbackCollector | None = None,
+        sound_player: TutorialSoundPlayer | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -216,10 +218,22 @@ class TutorialEngine(QObject):
                 consent_manager=self._consent_manager,
             )
         self._verifier = verifier if verifier is not None else ProgressVerifier(self._llm_adapter)
-        self._overlay = overlay if overlay is not None else GuidanceOverlayWidget()
+        self._overlay = (
+            overlay
+            if overlay is not None
+            else GuidanceOverlayWidget(
+                high_contrast=self._config.accessibility_high_contrast,
+                text_scale=self._config.accessibility_text_scale,
+            )
+        )
         self._overlay.set_display(self._display_manager.active_display)
         self._display_manager.active_display_changed.connect(self._on_active_display_changed)
         self._overlay_enabled = bool(overlay_enabled)
+        self._sound_player = (
+            sound_player
+            if sound_player is not None
+            else TutorialSoundPlayer(enabled=self._config.accessibility_sound_cues)
+        )
 
         storage_dir = (
             self._config.app_dir / "tutorial_feedback" if self._config.app_dir is not None else None
@@ -283,6 +297,7 @@ class TutorialEngine(QObject):
         tutorials: Sequence[TaskDefinition] | None = None,
         overlay_enabled: bool = False,
         feedback_collector: FeedbackCollector | None = None,
+        sound_player: TutorialSoundPlayer | None = None,
         parent: QObject | None = None,
     ) -> Self:
         """Construct a TutorialEngine from an AppConfig instance."""
@@ -299,6 +314,7 @@ class TutorialEngine(QObject):
             tutorials=tutorials,
             overlay_enabled=overlay_enabled,
             feedback_collector=feedback_collector,
+            sound_player=sound_player,
             parent=parent,
         )
 
@@ -394,9 +410,46 @@ class TutorialEngine(QObject):
         return self._overlay
 
     @property
+    def overlay(self) -> GuidanceOverlayWidget:
+        """Passive click-through visual guidance overlay widget (alias)."""
+        return self._overlay
+
+    @property
     def capturer(self) -> ScreenCapturer:
         """User-initiated screen capturer."""
         return self._capturer
+
+    @property
+    def sound_player(self) -> TutorialSoundPlayer:
+        """Tutorial completion sound player."""
+        return self._sound_player
+
+    @property
+    def sound_cues_enabled(self) -> bool:
+        """Whether tutorial completion sound cues are enabled."""
+        return self._sound_player.enabled
+
+    def set_sound_cues_enabled(self, enabled: bool) -> None:
+        """Enable or disable tutorial completion sound cues."""
+        self._sound_player.set_enabled(enabled)
+
+    @property
+    def overlay_high_contrast(self) -> bool:
+        """Whether overlay cues render in high-contrast mode."""
+        return self._overlay.high_contrast
+
+    def set_overlay_high_contrast(self, enabled: bool) -> None:
+        """Toggle high-contrast dual-stroke outlines and shape indicators on overlay."""
+        self._overlay.set_high_contrast(enabled)
+
+    @property
+    def overlay_text_scale(self) -> float:
+        """Current text scale applied to overlay cues."""
+        return self._overlay.text_scale
+
+    def set_overlay_text_scale(self, scale: float) -> None:
+        """Update text scaling factor on overlay cues."""
+        self._overlay.set_text_scale(scale)
 
     @property
     def consent_manager(self) -> ConsentManager:
@@ -824,6 +877,7 @@ class TutorialEngine(QObject):
             self._emit_step_changed()
             self._finalize_active_session(completed=True)
             self.tutorial_completed.emit(self._active_task.task_id, self._active_task.title)
+            self._sound_player.play_completion_cue()
             self._emit_activity(
                 f"Tutorial '{self._active_task.title}' completed via text flow!",
                 "INFO",
@@ -1038,6 +1092,7 @@ class TutorialEngine(QObject):
     def shutdown(self, timeout_ms: int = 2000) -> None:
         """Cancel active operations, stop voice/overlay, and wait for background workers."""
         self.cancel_active_operation()
+        self._sound_player.stop()
         if self._voice_controller is not None:
             self._voice_controller.cancel_or_stop()
 
@@ -1180,6 +1235,7 @@ class TutorialEngine(QObject):
                 self._finalize_active_session(completed=True)
                 self.verification_completed.emit(result)
                 self.tutorial_completed.emit(self._active_task.task_id, self._active_task.title)
+                self._sound_player.play_completion_cue()
                 self._emit_activity(
                     f"Tutorial '{self._active_task.title}' completed with AI verification!",
                     "INFO",

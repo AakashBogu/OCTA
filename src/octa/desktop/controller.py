@@ -55,6 +55,8 @@ class DesktopController(QObject):
     tutorials_catalog_reloaded = Signal()  # Emitted when tutorial plugins or catalog are reloaded
     displays_changed = Signal(tuple)  # tuple[DisplayInfo, ...]
     active_display_changed = Signal(object)  # DisplayInfo
+    tutorial_completed = Signal(str, str)  # task_id, task_title
+    accessibility_changed = Signal(bool, float, bool)  # high_contrast, text_scale, sound_cues
 
     def __init__(
         self,
@@ -159,6 +161,7 @@ class DesktopController(QObject):
         self._tutorial_engine.display_manager.active_display_changed.connect(
             self.active_display_changed.emit
         )
+        self._tutorial_engine.tutorial_completed.connect(self.tutorial_completed.emit)
 
     # ──────────────────────────────────────────
     # Properties
@@ -473,6 +476,85 @@ class DesktopController(QObject):
     def select_display(self, index_or_name: int | str) -> bool:
         """Select active display monitor by index or name."""
         return self._tutorial_engine.select_display(index_or_name)
+
+    # ──────────────────────────────────────────
+    # Accessibility Adaptations (Phase 8.3)
+    # ──────────────────────────────────────────
+
+    @property
+    def accessibility_high_contrast(self) -> bool:
+        """Whether high-contrast overlay cues are enabled."""
+        return self._tutorial_engine.overlay_high_contrast
+
+    @property
+    def accessibility_text_scale(self) -> float:
+        """Current UI and overlay text scale factor."""
+        return self._tutorial_engine.overlay_text_scale
+
+    @property
+    def accessibility_sound_cues(self) -> bool:
+        """Whether tutorial completion audio cues are enabled."""
+        return self._tutorial_engine.sound_cues_enabled
+
+    def set_high_contrast(self, enabled: bool) -> None:
+        """Toggle high-contrast cue rendering on the overlay and notify listeners."""
+        self._tutorial_engine.set_overlay_high_contrast(enabled)
+        self._log(
+            f"Accessibility: high-contrast cues {'enabled' if enabled else 'disabled'}.",
+            "INFO",
+        )
+        self.accessibility_changed.emit(
+            self.accessibility_high_contrast,
+            self.accessibility_text_scale,
+            self.accessibility_sound_cues,
+        )
+
+    def set_text_scale(self, scale: float) -> None:
+        """Update text scaling factor and notify listeners."""
+        self._tutorial_engine.set_overlay_text_scale(scale)
+        self._log(f"Accessibility: text scale set to {self.accessibility_text_scale:.2f}x.", "INFO")
+        self.accessibility_changed.emit(
+            self.accessibility_high_contrast,
+            self.accessibility_text_scale,
+            self.accessibility_sound_cues,
+        )
+
+    def set_sound_cues_enabled(self, enabled: bool) -> None:
+        """Toggle tutorial completion audio chime cues and notify listeners."""
+        self._tutorial_engine.set_sound_cues_enabled(enabled)
+        self._log(
+            f"Accessibility: completion audio cues {'enabled' if enabled else 'disabled'}.",
+            "INFO",
+        )
+        self.accessibility_changed.emit(
+            self.accessibility_high_contrast,
+            self.accessibility_text_scale,
+            self.accessibility_sound_cues,
+        )
+
+    def set_accessibility_preferences(
+        self,
+        *,
+        high_contrast: bool | None = None,
+        text_scale: float | None = None,
+        sound_cues: bool | None = None,
+    ) -> None:
+        """Atomically update accessibility preferences and emit accessibility_changed."""
+        if high_contrast is not None:
+            self._tutorial_engine.set_overlay_high_contrast(high_contrast)
+        if text_scale is not None:
+            self._tutorial_engine.set_overlay_text_scale(text_scale)
+        if sound_cues is not None:
+            self._tutorial_engine.set_sound_cues_enabled(sound_cues)
+        self.accessibility_changed.emit(
+            self.accessibility_high_contrast,
+            self.accessibility_text_scale,
+            self.accessibility_sound_cues,
+        )
+
+    def play_completion_sound_cue(self) -> bool:
+        """Explicitly test or trigger the tutorial completion sound cue."""
+        return self._tutorial_engine.sound_player.play_completion_cue()
 
     # ──────────────────────────────────────────
     # Internal Lifecycle Sequencing & Helpers

@@ -341,6 +341,10 @@ When loaded via `AppConfig.load(...)`, values are resolved with the following pr
 | PySide6 Desktop UI / Tray | ✅ Implemented (Phase 2.5) | `OctaSystemTray`, `DiagnosticWindow`, `DesktopController`, `OctaApplication` |
 | Screen Capture & AI Integration | ✅ Implemented (Phase 4.0) | `octa.intelligence` (`ScreenCapturer`, `TaskDefinition`, `ConsentManager`, `OpenAICompatibleAdapter`, `ProgressVerifier`, `GuidanceOverlayWidget`) |
 | Voice Interaction (STT/TTS) | ✅ Implemented (Phase 5.0) | `octa.voice` (`PushToTalkRecorder`, `SpeechToTextProvider`, `TextToSpeechProvider`, `VoiceConsentManager`, `VoiceInteractionController`) |
+| End-to-End Tutorial Engine | ✅ Implemented (Phase 6.0) | `octa.tutorials` (`TutorialEngine`, `TutorialCatalog`, `FeedbackCollector`) |
+| External Tutorial Plugin System | ✅ Implemented (Phase 8.1) | `octa.tutorials.plugins` (sandboxed manifests, path containment, dynamic reload) |
+| Multi-Monitor Geometry & Display Adaptation | ✅ Implemented (Phase 8.2) | `octa.intelligence.display` (`DisplayManager`, `DisplayInfo`, negative coords, per-monitor overlay/capture) |
+| Accessibility Adaptations | ✅ Implemented (Phase 8.3) | `octa.intelligence.overlay` (dual-stroke high contrast, non-color cues, text scaling), `octa.tutorials.sound` (in-memory harmonic chime), Qt a11y labels & keyboard nav |
 
 ---
 
@@ -897,3 +901,60 @@ On Windows, multiple displays are arranged on a virtual desktop canvas. Dependin
 5. **Desktop UI Integration (`DiagnosticWindow`)**:
    - Live `Monitor:` combo box displaying all connected displays with their resolutions, virtual coordinates, scaling factors, and primary indicators.
    - When the user selects a different monitor, `DesktopController.select_display(index)` updates the `TutorialEngine`, moving the guidance overlay and capture target to that display immediately.
+
+---
+
+## Phase 8.3 — Accessibility Adaptations Architecture
+
+### Overview
+
+OCTA Phase 8.3 introduces comprehensive accessibility adaptations across the visual guidance overlay, desktop application UI, and auditory completion cues. The design emphasizes multi-modal feedback, universal contrast across heterogeneous background themes, and robust keyboard navigation without requiring mouse interaction.
+
+```
+┌────────────────────────────────────────────────────────┐
+│                   AppConfig                            │
+│  - accessibility_high_contrast: bool                   │
+│  - accessibility_text_scale: float [0.5, 3.0]          │
+│  - accessibility_sound_cues: bool                      │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+             ┌─────────────┼─────────────┐
+             ▼             ▼             ▼
+┌──────────────────┐ ┌───────────┐ ┌──────────────────────┐
+│ GuidanceOverlay  │ │ Diagnostic│ │ TutorialSoundPlayer  │
+│ - Dual-stroke    │ │ Window    │ │ - In-memory harmonic │
+│   high contrast  │ │ - Text sz │ │   PCM WAV synthesis  │
+│ - Non-color cues │ │ - Qt a11y │ │ - Optional playback  │
+│ - Text scaling   │ │ - Tab nav │ │   respecting config  │
+└──────────────────┘ └───────────┘ └──────────────────────┘
+```
+
+### Key Architectural Components
+
+1. **Dual-Stroke High-Contrast Rendering (`GuidanceOverlayWidget`)**:
+   - Single-color outlines (such as pure white or pure cyan) lose contrast when superimposed on light-themed applications (e.g. Notepad, browser documents) or dark-themed IDEs.
+   - Dual-stroke rendering draws a wider, dark outer halo (`QColor(0, 0, 0, 240)`) followed by an inner vibrant yellow stroke (`#FFEA00`, 3.5 px width).
+   - This guarantees high-contrast edges (> 7:1 contrast ratio) against any backdrop color without obscuring the target UI elements.
+
+2. **Non-Color Shape Indicators (WCAG Success Criterion 1.4.1)**:
+   - Visual guidance does not rely on color alone to convey meaning or focus targets.
+   - **Highlights**: Equipped with prominent L-shaped corner indicator brackets extending inward from each corner of the bounding box, providing unambiguous geometric framing.
+   - **Arrows**: Equipped with an origin target ring (`O`) at the arrow base and an enlarged directional pointer head (`>`), clearly indicating directionality.
+   - **Badges**: Text labels are prefixed with distinct shape glyphs (`[■]` for highlights, `[▶]` for arrows).
+
+3. **Dynamic Text Scaling (0.5x to 3.0x)**:
+   - Configurable text scale multiplier allows users with low vision to enlarge overlay cue text and desktop UI fonts up to 300%.
+   - Overlay badge bounding boxes dynamically measure text dimensions using `QFontMetrics` with proportional padding (`int(6 * text_scale)`), preventing label clipping or text wrapping truncation.
+   - Desktop UI (`DiagnosticWindow`) applies text scaling across all labels, group boxes, combo boxes, buttons, and log viewers.
+
+4. **In-Memory Harmonic Completion Chime Synthesis (`octa.tutorials.sound`)**:
+   - To avoid bundling external binary audio assets or adding heavy third-party audio dependencies, completion chimes are synthesized dynamically in memory using pure Python standard library modules (`math`, `struct`, `wave`).
+   - Generates a pleasant ascending harmonic triad (C5 523.25 Hz -> E5 659.25 Hz -> G5 783.99 Hz) with smooth cosine attack and exponential decay envelopes at 44.1 kHz 16-bit PCM mono.
+   - `TutorialSoundPlayer` plays the synthesized audio via `QtAudioPlaybackBackend` (or mock backend in headless test environments).
+   - Audio cues are strictly opt-in (`accessibility_sound_cues = False` by default) and respect user preferences, remaining silent when disabled.
+
+5. **Qt Accessibility Labels & Keyboard Navigation**:
+   - All interactive controls in `DiagnosticWindow` and `TutorialFeedbackDialog` are annotated with `setAccessibleName()` and `setAccessibleDescription()` for assistive screen reader compatibility.
+   - `Qt.FocusPolicy.StrongFocus` is assigned to all interactive inputs, buttons, and combo selectors.
+   - An explicit, logical keyboard tab order (`QWidget.setTabOrder`) chains controls from the tutorial selector down to log views.
+   - Standard keyboard shortcuts (e.g. `Alt+F` for feedback) provide fast, mouse-free workflow execution.

@@ -805,3 +805,53 @@ Implemented and verified Phase 8.2 — Multi-Monitor Geometry & Display Adaptati
 
 ### Next Step
 - Review and stage Phase 8.2 files when approved.
+
+---
+
+## Task: Phase 8.3 — Accessibility Adaptations
+
+**Date:** 2026-11-12
+**Phase:** 8.3
+
+### Summary
+Implemented and verified Phase 8.3 — Accessibility Adaptations for OCTA:
+1. Created strongly-typed accessibility configuration in `AppConfig` (`accessibility_high_contrast`, `accessibility_text_scale`, `accessibility_sound_cues`) with validation (text scale range 0.5 to 3.0) and environment loading (`OCTA_ACCESSIBILITY_*`).
+2. Implemented dual-stroke high-contrast rendering in `GuidanceOverlayWidget` (outer dark halo + inner vibrant yellow stroke `#FFEA00`), guaranteeing contrast against light- and dark-themed application windows.
+3. Added non-color shape indicators for colorblind and low-vision accessibility (L-shaped corner brackets for highlights, start target ring `O` for arrows, and shape badges `[■]` / `[▶]`).
+4. Implemented dynamic text scaling (0.5x to 3.0x multiplier) across desktop UI and visual overlay cues, with dynamic font measurement using `QFontMetrics` to prevent label truncation.
+5. Implemented pure-Python in-memory harmonic completion chime synthesizer (`synthesize_completion_chime_wav`) using standard PCM audio math (C5-E5-G5 triad with cosine attack and exponential decay) and `TutorialSoundPlayer` managing optional playback respecting user preferences and disabled audio states without external files or audio libraries.
+6. Integrated `TutorialSoundPlayer` and accessibility overlay configuration into `TutorialEngine`, dispatching the optional chime on manual step completion and AI verification step completion.
+7. Added accessibility settings group in `DiagnosticWindow` (high-contrast toggle, text size selector, sound cues toggle, and audio cue test button).
+8. Annotated all interactive desktop controls with accessible names (`setAccessibleName`), descriptions (`setAccessibleDescription`), keyboard focus policy (`StrongFocus`), and logical tab order navigation.
+9. Added 14 automated unit and integration tests (`tests/unit/test_accessibility.py`) covering config defaults, validation, env parsing, overlay high contrast, non-color cues, text scaling, in-memory chime WAV synthesis/decoding, sound player enable/disable, engine completion cue triggering, controller delegation, and UI accessibility/keyboard navigation.
+
+### Files Changed
+- `src/octa/core/config.py` — Added accessibility config fields and validation.
+- `.env.example` — Documented OCTA_ACCESSIBILITY_* environment variables.
+- `src/octa/intelligence/overlay.py` — Dual-stroke high-contrast outlines, non-color shape cues, dynamic text scaling.
+- `src/octa/tutorials/sound.py` — Created. In-memory harmonic chime synthesizer and TutorialSoundPlayer.
+- `src/octa/tutorials/__init__.py` — Exported TutorialSoundPlayer and sound helper functions.
+- `src/octa/tutorials/engine.py` — Integrated sound player and overlay accessibility properties.
+- `src/octa/desktop/controller.py` — Added accessibility properties, setters, and signals.
+- `src/octa/desktop/window.py` — Added accessibility controls, text scaling, accessible attributes, and tab order.
+- `tests/unit/test_accessibility.py` — Created. 14 unit and integration tests.
+- `ROADMAP.md` — Marked Phase 8.3 complete.
+- `README.md` — Updated status, What Works Now, roadmap table, and test counts.
+- `CHANGELOG.md` — Added Phase 8.3 entry under [Unreleased].
+- `docs/architecture.md` — Documented accessibility adaptations architecture.
+- `docs/PROGRESS.md` — Appended this progress entry.
+
+### Validation
+- **Accessibility Test Suite**: Ran `pytest tests/unit/test_accessibility.py -v`: 14 passed.
+- **Godot Enhanced Character Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_enhanced_character.gd`: 66 passed, 0 failed.
+- **Godot Protocol Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_ws_protocol.gd`: 13 passed, 0 failed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 344 passed, 1 skipped.
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 76 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 8.3 files when approved.

@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 8.2 — Multi-Monitor Geometry & Display Adaptation (complete)
+**Status:** 🟢 Phase 8.3 — Accessibility Adaptations (complete)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), and Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling) are implemented and verified.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), and Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation) are implemented and verified.
 
 ---
 
@@ -34,7 +34,7 @@ OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop
 
 ## What Works Now
 
-OCTA currently includes eight verified subsystems:
+OCTA currently includes eleven verified subsystems:
 
 ### 1. Phase 7.0 Enhanced Godot 3D Character & Desktop Window
 - **Transparent Borderless Window:** Transparent desktop companion overlay with per-pixel alpha transparency, always-on-top ordering, default bottom-right screen docking, and left-click mouse dragging to position the character anywhere on the desktop.
@@ -110,6 +110,14 @@ OCTA currently includes eight verified subsystems:
 - **Dynamic Display Resilience:** Listens for screen additions, removals, and resolution changes (`QGuiApplication.screenAdded`, `screenRemoved`), automatically falling back to the primary display if the active display is unplugged.
 - **Desktop UI Integration:** Live monitor selection dropdown in `DiagnosticWindow` showing resolutions, scaling percentages, and primary flags with real-time updates.
 
+### 11. Phase 8.3 Accessibility Adaptations (`src/octa/intelligence/overlay.py`, `src/octa/tutorials/sound.py`)
+- **High-Contrast Overlay Cues:** High-contrast mode with dual-stroke rendering (dark outer halo + bright inner stroke) guaranteeing readability against both light and dark application backgrounds.
+- **Non-Color Shape Indicators:** Overlay cues do not rely on color alone; highlights feature L-shaped corner indicator brackets and shape badges (`[■]`), while arrows include an origin target ring (`O`), double-outlined head, and directional badge (`[▶]`).
+- **Dynamic Text Scaling:** User-configurable text size scaling across desktop window elements and visual overlay labels (0.5x to 3.0x multiplier) with dynamic label and padding measurement preventing text clipping.
+- **In-Memory Completion Audio Chimes:** Pure Python in-memory PCM harmonic chime synthesis (`synthesize_completion_chime_wav`) producing a pleasant three-tone completion cue with zero external audio assets or dependencies.
+- **Optional Audio Playback:** `TutorialSoundPlayer` plays the completion chime on tutorial completion while strictly respecting user audio preferences and disabled audio settings.
+- **Qt Accessibility & Keyboard Navigation:** Complete accessible names and descriptions (`setAccessibleName`, `setAccessibleDescription`), keyboard focus policies (`StrongFocus`), and logical tab order navigation across `DiagnosticWindow` and `TutorialFeedbackDialog`.
+
 ---
 
 ## Proposed Architecture
@@ -167,12 +175,13 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 7.0 | Enhanced Godot character & desktop window | ✅ Complete |
 | 8.1 | External tutorial plugin system | ✅ Complete |
 | 8.2 | Multi-monitor geometry & display adaptation | ✅ Complete |
+| 8.3 | Accessibility adaptations | ✅ Complete |
 
 ---
 
 ## Development Status
 
-- **Current phase:** Phase 8.2 Complete — Multi-Monitor Geometry & Display Adaptation implemented, documented, and verified with monitor discovery, negative desktop coordinates, DPI scaling, and dynamic display adaptation.
+- **Current phase:** Phase 8.3 Complete — Accessibility Adaptations implemented, documented, and verified with high-contrast dual-stroke cues, non-color shape indicators, text scaling, optional in-memory completion audio chime, and Qt keyboard navigation.
 - **What exists:**
   - Runnable Godot 4.7 project with transparent borderless desktop overlay, articulated 3D character, 6 animations, `AnimationTree` state machine, 100% procedural assets under MIT license (`ASSETS_LICENSE.md`), and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
@@ -182,8 +191,9 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
   - Phase 6.0 Tutorial Engine (`src/octa/tutorials`) with `TutorialEngine` orchestrating tutorial selection, text-based step navigation and manual completion, user-initiated capture with single-use consent and background AI verification, overlay and voice synchronization, built-in sample tutorials (OCTA welcome, Windows Notepad, Windows File Explorer), structured feedback collection (`FeedbackCollector`, `TutorialFeedbackDialog`, `TutorialSessionMetrics`), performance optimizations, and standalone Windows packaging (`octa.spec`, `build_windows_dist.py`).
   - Phase 8.1 External Tutorial Plugin System (`src/octa/tutorials/plugins.py`, `catalog.py`) with `plugin.json` discovery, strict schema validation, security sandboxing against path traversal and symlink escapes, ID collision protection against shadowing built-ins, secret-safe diagnostic reporting, dynamic reload, and provenance integration in `DiagnosticWindow`.
   - Phase 8.2 Multi-Monitor Geometry & Display Adaptation (`src/octa/intelligence/display.py`) with `DisplayManager` monitor discovery, negative desktop coordinates, global-to-local coordinate transformations, DPI scaling, monitor selection in `DiagnosticWindow`, and dynamic disconnect handling.
-  - Full automated test suite: 330 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
-- **What does not exist yet:** Wake-word detection (explicitly deferred), accessibility features (high contrast / screen readers), and cloud sync.
+  - Phase 8.3 Accessibility Adaptations (`src/octa/intelligence/overlay.py`, `src/octa/tutorials/sound.py`) with high-contrast dual-stroke cues, non-color shape indicators, dynamic text scaling (0.5x to 3.0x), in-memory harmonic completion chime synthesis, optional audio player, accessible Qt labeling, and keyboard focus policies.
+  - Full automated test suite: 344 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
+- **What does not exist yet:** Wake-word detection (explicitly deferred), cloud sync for progress, and external plugin distribution manager.
 
 ---
 
@@ -313,6 +323,13 @@ OCTA/
 │       │   ├── manager.py        # GodotProcessManager (PySide6 QProcess lifecycle)
 │       │   ├── state.py          # ProcessState enum
 │       │   └── validator.py      # Executable and project path validation
+│       ├── tutorials/            # Phase 6.0, 8.1 & 8.3 tutorial engine, catalog & sound
+│       │   ├── __init__.py       # Tutorial module exports
+│       │   ├── catalog.py        # Built-in tutorials and plugin-aware TutorialCatalog
+│       │   ├── engine.py         # End-to-end TutorialEngine with overlay & sound cues
+│       │   ├── feedback.py       # FeedbackCollector, metrics & rating dialog
+│       │   ├── plugins.py        # External tutorial plugin loader & sandboxing
+│       │   └── sound.py          # Tutorial completion chime synthesis & sound player
 │       └── voice/                # Phase 5.0 push-to-talk voice interaction
 │           ├── __init__.py       # Voice module exports
 │           ├── audio.py          # Push-to-talk audio models, WAV codec & capture
@@ -320,7 +337,7 @@ OCTA/
 │           ├── controller.py     # VoiceInteractionController & instruction pipeline routing
 │           ├── exceptions.py     # Voice, microphone, consent, and provider exceptions
 │           └── providers.py      # Injectable STT/TTS protocols, mocks, HTTP providers & catalog
-├── tests/                        # Automated test suite (279 Python tests passing)
+├── tests/                        # Automated test suite (344 Python tests passing)
 │   ├── conftest.py               # Shared test fixtures & custom markers
 │   ├── integration/              # Real binary integration tests
 │   │   ├── test_end_to_end_bridge.py          # Full Python server and Godot client tests

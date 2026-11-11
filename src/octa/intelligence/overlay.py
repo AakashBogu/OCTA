@@ -246,12 +246,17 @@ class GuidanceOverlayWidget(QWidget):
     def __init__(
         self,
         screen_bounds: OverlayBounds | None = None,
+        *,
+        high_contrast: bool = False,
+        text_scale: float = 1.0,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._screen_bounds = (
             screen_bounds if screen_bounds is not None else _resolve_default_screen_bounds()
         )
+        self._high_contrast = bool(high_contrast)
+        self._text_scale = max(0.5, min(3.0, float(text_scale)))
         self._highlights: list[HighlightSpec] = []
         self._arrows: list[ArrowSpec] = []
 
@@ -310,6 +315,30 @@ class GuidanceOverlayWidget(QWidget):
         else:
             raise InvalidOverlayCoordinatesError(f"Invalid display object: {display!r}")
         self.set_screen_bounds(bounds)
+
+    @property
+    def high_contrast(self) -> bool:
+        """Return True if high-contrast cue rendering is enabled."""
+        return self._high_contrast
+
+    def set_high_contrast(self, enabled: bool) -> None:
+        """Toggle high-contrast dual-stroke outlines and non-color shape cues."""
+        new_val = bool(enabled)
+        if self._high_contrast != new_val:
+            self._high_contrast = new_val
+            self.update()
+
+    @property
+    def text_scale(self) -> float:
+        """Return current label font and padding scaling multiplier."""
+        return self._text_scale
+
+    def set_text_scale(self, scale: float) -> None:
+        """Update text scale factor (clamped between 0.5 and 3.0) and redraw."""
+        clamped = max(0.5, min(3.0, float(scale)))
+        if abs(self._text_scale - clamped) > 1e-4:
+            self._text_scale = clamped
+            self.update()
 
     @property
     def highlights(self) -> tuple[HighlightSpec, ...]:
@@ -434,47 +463,90 @@ class GuidanceOverlayWidget(QWidget):
         origin_y = self._screen_bounds.y
 
         label_font = QFont()
-        label_font.setPointSize(9)
+        label_font.setPointSize(max(8, int(round(9.0 * self._text_scale))))
         label_font.setBold(True)
         painter.setFont(label_font)
 
         # 1. Draw highlights
         for h in self._highlights:
-            base_color = QColor(h.color)
-            fill_color = QColor(base_color)
-            fill_color.setAlpha(40)
-
-            pen = QPen(base_color, float(h.stroke_width))
-            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-            painter.setPen(pen)
-            painter.setBrush(QBrush(fill_color))
-
             rect = QRectF(
                 float(h.x - origin_x),
                 float(h.y - origin_y),
                 float(h.width),
                 float(h.height),
             )
-            painter.drawRoundedRect(rect, 6.0, 6.0)
+            base_color = QColor(h.color)
 
-            if h.label:
-                self._draw_label(
-                    painter,
-                    h.label,
-                    float(h.x - origin_x),
-                    max(4.0, float(h.y - origin_y) - 22.0),
-                    base_color,
-                )
+            if not self._high_contrast:
+                fill_color = QColor(base_color)
+                fill_color.setAlpha(40)
+                pen = QPen(base_color, float(h.stroke_width))
+                pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                painter.setPen(pen)
+                painter.setBrush(QBrush(fill_color))
+                painter.drawRoundedRect(rect, 6.0, 6.0)
+
+                if h.label:
+                    self._draw_label(
+                        painter,
+                        h.label,
+                        float(h.x - origin_x),
+                        max(4.0, float(h.y - origin_y) - (22.0 * self._text_scale)),
+                        base_color,
+                        text_scale=self._text_scale,
+                    )
+            else:
+                # High-contrast mode: dual-stroke outline + non-color corner brackets
+                # 1. Outer dark halo for maximum contrast against light backgrounds
+                outer_pen = QPen(QColor(0, 0, 0, 240), float(h.stroke_width) + 4.0)
+                outer_pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+                painter.setPen(outer_pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRoundedRect(rect, 4.0, 4.0)
+
+                # 2. Inner bright high-contrast yellow dashed stroke
+                bright_color = QColor(255, 234, 0)
+                inner_pen = QPen(bright_color, float(h.stroke_width) + 1.0, Qt.PenStyle.DashLine)
+                inner_pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+                painter.setPen(inner_pen)
+                painter.setBrush(QBrush(QColor(255, 234, 0, 50)))
+                painter.drawRoundedRect(rect, 4.0, 4.0)
+
+                # 3. Non-color shape cues: L-shaped corner indicator brackets
+                rx = rect.x()
+                ry = rect.y()
+                rw = rect.width()
+                rh = rect.height()
+                arm = max(8.0, min(24.0, min(rw, rh) * 0.25))
+
+                bracket_pen_outer = QPen(QColor(0, 0, 0), float(h.stroke_width) + 3.0)
+                bracket_pen_inner = QPen(bright_color, float(h.stroke_width) + 1.0)
+                for b_pen in (bracket_pen_outer, bracket_pen_inner):
+                    painter.setPen(b_pen)
+                    painter.drawLine(QPointF(rx, ry), QPointF(rx + arm, ry))
+                    painter.drawLine(QPointF(rx, ry), QPointF(rx, ry + arm))
+                    painter.drawLine(QPointF(rx + rw, ry), QPointF(rx + rw - arm, ry))
+                    painter.drawLine(QPointF(rx + rw, ry), QPointF(rx + rw, ry + arm))
+                    painter.drawLine(QPointF(rx, ry + rh), QPointF(rx + arm, ry + rh))
+                    painter.drawLine(QPointF(rx, ry + rh), QPointF(rx, ry + rh - arm))
+                    painter.drawLine(QPointF(rx + rw, ry + rh), QPointF(rx + rw - arm, ry + rh))
+                    painter.drawLine(QPointF(rx + rw, ry + rh), QPointF(rx + rw, ry + rh - arm))
+
+                if h.label:
+                    self._draw_label(
+                        painter,
+                        h.label,
+                        float(h.x - origin_x),
+                        max(4.0, float(h.y - origin_y) - (24.0 * self._text_scale)),
+                        bright_color,
+                        high_contrast=True,
+                        text_scale=self._text_scale,
+                        shape_prefix="[■] ",
+                    )
 
         # 2. Draw arrows
         for a in self._arrows:
             base_color = QColor(a.color)
-            pen = QPen(base_color, float(a.stroke_width))
-            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-            painter.setPen(pen)
-            painter.setBrush(QBrush(base_color))
-
             sx = float(a.start_x - origin_x)
             sy = float(a.start_y - origin_y)
             ex = float(a.end_x - origin_x)
@@ -482,7 +554,6 @@ class GuidanceOverlayWidget(QWidget):
 
             start_pt = QPointF(sx, sy)
             end_pt = QPointF(ex, ey)
-            painter.drawLine(start_pt, end_pt)
 
             # Calculate arrowhead triangle
             angle = math.atan2(ey - sy, ex - sx)
@@ -498,10 +569,76 @@ class GuidanceOverlayWidget(QWidget):
                 ey - head_len * math.sin(angle + head_angle),
             )
             arrowhead = QPolygonF([end_pt, p1, p2])
-            painter.drawPolygon(arrowhead)
 
-            if a.label:
-                self._draw_label(painter, a.label, sx, max(4.0, sy - 22.0), base_color)
+            if not self._high_contrast:
+                pen = QPen(base_color, float(a.stroke_width))
+                pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                painter.setPen(pen)
+                painter.setBrush(QBrush(base_color))
+                painter.drawLine(start_pt, end_pt)
+                painter.drawPolygon(arrowhead)
+
+                if a.label:
+                    self._draw_label(
+                        painter,
+                        a.label,
+                        sx,
+                        max(4.0, sy - (22.0 * self._text_scale)),
+                        base_color,
+                        text_scale=self._text_scale,
+                    )
+            else:
+                # High contrast arrow: dual-stroke line + target start ring (O) + dual-stroke head
+                bright_color = QColor(255, 234, 0)
+                # Outer dark halo
+                pen_outer = QPen(
+                    QColor(0, 0, 0, 240),
+                    float(a.stroke_width) + 4.0,
+                    Qt.PenStyle.SolidLine,
+                    Qt.PenCapStyle.RoundCap,
+                )
+                painter.setPen(pen_outer)
+                painter.drawLine(start_pt, end_pt)
+
+                # Inner bright line
+                pen_inner = QPen(
+                    bright_color,
+                    float(a.stroke_width) + 1.0,
+                    Qt.PenStyle.SolidLine,
+                    Qt.PenCapStyle.RoundCap,
+                )
+                painter.setPen(pen_inner)
+                painter.drawLine(start_pt, end_pt)
+
+                # Non-color shape indicator: start target ring (O)
+                target_rad = max(6.0, float(a.stroke_width) * 2.0)
+                painter.setPen(QPen(QColor(0, 0, 0), float(a.stroke_width) + 2.0))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(start_pt, target_rad, target_rad)
+                painter.setPen(QPen(bright_color, float(a.stroke_width)))
+                painter.drawEllipse(start_pt, target_rad, target_rad)
+
+                # Dual-stroke arrowhead
+                painter.setPen(QPen(QColor(0, 0, 0), 3.0))
+                painter.setBrush(QBrush(QColor(0, 0, 0)))
+                painter.drawPolygon(arrowhead)
+
+                painter.setPen(QPen(bright_color, 1.5))
+                painter.setBrush(QBrush(bright_color))
+                painter.drawPolygon(arrowhead)
+
+                if a.label:
+                    self._draw_label(
+                        painter,
+                        a.label,
+                        sx,
+                        max(4.0, sy - (24.0 * self._text_scale)),
+                        bright_color,
+                        high_contrast=True,
+                        text_scale=self._text_scale,
+                        shape_prefix="[▶] ",
+                    )
 
     @staticmethod
     def _draw_label(
@@ -510,17 +647,29 @@ class GuidanceOverlayWidget(QWidget):
         x: float,
         y: float,
         accent_color: QColor,
+        *,
+        high_contrast: bool = False,
+        text_scale: float = 1.0,
+        shape_prefix: str = "",
     ) -> None:
+        display_text = (
+            f"{shape_prefix}{text}" if (shape_prefix and not text.startswith("[")) else text
+        )
         metrics = painter.fontMetrics()
-        text_w = float(metrics.horizontalAdvance(text)) + 12.0
-        text_h = float(metrics.height()) + 6.0
+        pad_x = 12.0 * max(1.0, text_scale)
+        pad_y = 6.0 * max(1.0, text_scale)
+        text_w = float(metrics.horizontalAdvance(display_text)) + pad_x
+        text_h = float(metrics.height()) + pad_y
         bg_rect = QRectF(x, y, text_w, text_h)
 
-        bg_color = QColor(20, 24, 32, 220)
+        bg_color = QColor(0, 0, 0, 245) if high_contrast else QColor(20, 24, 32, 220)
+        border_pen = QPen(QColor(255, 234, 0), 2.0) if high_contrast else QPen(accent_color, 1.5)
+        text_color = QColor(255, 255, 255)
+
         painter.save()
-        painter.setPen(QPen(accent_color, 1.5))
+        painter.setPen(border_pen)
         painter.setBrush(QBrush(bg_color))
         painter.drawRoundedRect(bg_rect, 4.0, 4.0)
-        painter.setPen(QPen(QColor(255, 255, 255)))
-        painter.drawText(bg_rect, Qt.AlignmentFlag.AlignCenter, text)
+        painter.setPen(QPen(text_color))
+        painter.drawText(bg_rect, Qt.AlignmentFlag.AlignCenter, display_text)
         painter.restore()

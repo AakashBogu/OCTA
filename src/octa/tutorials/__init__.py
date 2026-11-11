@@ -36,6 +36,11 @@ from octa.tutorials.plugins import (
     discover_tutorial_plugins,
     load_tutorial_plugin,
 )
+from octa.tutorials.sound import (
+    TutorialSoundPlayer,
+    create_completion_speech_cue,
+    synthesize_completion_chime_wav,
+)
 
 __all__ = [
     "BUILTIN_TASK_IDS",
@@ -56,12 +61,15 @@ __all__ = [
     "TutorialPluginManifest",
     "TutorialSessionMetrics",
     "TutorialSessionState",
+    "TutorialSoundPlayer",
     "build_explorer_new_folder_tutorial",
     "build_notepad_save_tutorial",
     "build_octa_welcome_tutorial",
+    "create_completion_speech_cue",
     "discover_tutorial_plugins",
     "get_builtin_tutorials",
     "get_tutorial_by_id",
     "load_tutorial_from_json_file",
     "load_tutorial_plugin",
+    "synthesize_completion_chime_wav",
 ]

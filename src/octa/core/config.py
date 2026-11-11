@@ -34,6 +34,9 @@ DEFAULT_VOICE_TTS_VOICE = "alloy"
 DEFAULT_VOICE_TIMEOUT_SECONDS = 30.0
 DEFAULT_VOICE_ALLOW_LOCAL_HTTP = False
 DEFAULT_VOICE_MAX_RECORDING_SECONDS = 30.0
+DEFAULT_ACCESSIBILITY_HIGH_CONTRAST = False
+DEFAULT_ACCESSIBILITY_TEXT_SCALE = 1.0
+DEFAULT_ACCESSIBILITY_SOUND_CUES = False
 
 
 def _get_default_app_dir() -> Path:
@@ -168,6 +171,9 @@ class AppConfig:
     voice_max_recording_seconds: float = DEFAULT_VOICE_MAX_RECORDING_SECONDS
     tutorial_plugin_dir: Path | None = None
     active_monitor_index: int = 0
+    accessibility_high_contrast: bool = DEFAULT_ACCESSIBILITY_HIGH_CONTRAST
+    accessibility_text_scale: float = DEFAULT_ACCESSIBILITY_TEXT_SCALE
+    accessibility_sound_cues: bool = DEFAULT_ACCESSIBILITY_SOUND_CUES
 
     def __post_init__(self) -> None:
         """Validate configuration values and normalize types."""
@@ -343,6 +349,28 @@ class AppConfig:
 
         if self.tutorial_plugin_dir is not None and not isinstance(self.tutorial_plugin_dir, Path):
             object.__setattr__(self, "tutorial_plugin_dir", Path(self.tutorial_plugin_dir))
+
+        # Validate Accessibility settings (Phase 8.3)
+        object.__setattr__(
+            self,
+            "accessibility_high_contrast",
+            _parse_bool(self.accessibility_high_contrast, "accessibility_high_contrast"),
+        )
+        parsed_scale = _parse_float(
+            self.accessibility_text_scale,
+            "accessibility_text_scale",
+            strictly_positive=True,
+        )
+        if parsed_scale < 0.5 or parsed_scale > 3.0:
+            raise ConfigError(
+                f"Field 'accessibility_text_scale' must be between 0.5 and 3.0, got {parsed_scale}."
+            )
+        object.__setattr__(self, "accessibility_text_scale", parsed_scale)
+        object.__setattr__(
+            self,
+            "accessibility_sound_cues",
+            _parse_bool(self.accessibility_sound_cues, "accessibility_sound_cues"),
+        )
 
     @classmethod
     def load(
@@ -581,6 +609,40 @@ class AppConfig:
                 int(overrides["active_monitor_index"])
                 if "active_monitor_index" in overrides
                 else (int(get_val("OCTA_MONITOR_INDEX")) if get_val("OCTA_MONITOR_INDEX") else 0)
+            ),
+            "accessibility_high_contrast": (
+                overrides["accessibility_high_contrast"]
+                if "accessibility_high_contrast" in overrides
+                else _parse_bool(
+                    get_val(
+                        "OCTA_ACCESSIBILITY_HIGH_CONTRAST",
+                        DEFAULT_ACCESSIBILITY_HIGH_CONTRAST,
+                    ),
+                    "accessibility_high_contrast",
+                )
+            ),
+            "accessibility_text_scale": (
+                overrides["accessibility_text_scale"]
+                if "accessibility_text_scale" in overrides
+                else _parse_float(
+                    get_val(
+                        "OCTA_ACCESSIBILITY_TEXT_SCALE",
+                        DEFAULT_ACCESSIBILITY_TEXT_SCALE,
+                    ),
+                    "accessibility_text_scale",
+                    strictly_positive=True,
+                )
+            ),
+            "accessibility_sound_cues": (
+                overrides["accessibility_sound_cues"]
+                if "accessibility_sound_cues" in overrides
+                else _parse_bool(
+                    get_val(
+                        "OCTA_ACCESSIBILITY_SOUND_CUES",
+                        DEFAULT_ACCESSIBILITY_SOUND_CUES,
+                    ),
+                    "accessibility_sound_cues",
+                )
             ),
         }
 

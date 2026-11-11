@@ -193,9 +193,22 @@
 
 ---
 
+### Phase 8.3 — Accessibility Adaptations *(complete)*
+
+- [x] Strongly-typed accessibility configuration in `AppConfig` (`accessibility_high_contrast`, `accessibility_text_scale`, `accessibility_sound_cues`) with validation and environment variable loading (`OCTA_ACCESSIBILITY_*`)
+- [x] High-contrast overlay cues with dual-stroke rendering (outer dark halo + inner vibrant yellow stroke) guaranteeing readability against both light and dark application backgrounds
+- [x] Non-color shape indicators for colorblind and low-vision accessibility (L-shaped corner indicator brackets for highlights, start-point target ring `O` for arrows, and shape badges `[■]` / `[▶]`)
+- [x] Dynamic UI and overlay text scaling (0.5x to 3.0x multiplier) with dynamic label and padding measurement preventing text clipping
+- [x] In-memory harmonic completion audio chime synthesis (`synthesize_completion_chime_wav`) using standard PCM audio math with zero external files or dependencies
+- [x] Optional completion audio player (`TutorialSoundPlayer`) strictly respecting user preferences and disabled audio settings
+- [x] Accessible Qt labeling (`setAccessibleName`, `setAccessibleDescription`), keyboard focus policies (`StrongFocus`), and tab order navigation across `DiagnosticWindow` and `TutorialFeedbackDialog`
+- [x] Accessibility preference controls in `DiagnosticWindow` (high contrast toggle, text size selector, sound cues toggle, audio cue test button)
+- [x] Comprehensive automated test suite (`tests/unit/test_accessibility.py`) covering config validation, overlay contrast, non-color shapes, text scaling, chime synthesis, sound player enable/disable, and UI keyboard/accessibility navigation
+
+---
+
 ## Future Ideas *(not scheduled)*
 
 - Plugin distribution tool & package manager (signed archive bundles for external tutorials)
-- Accessibility features (high contrast, screen reader compatibility)
 - Localization / multi-language support
 - Cloud sync for progress and preferences
