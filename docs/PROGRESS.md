@@ -901,3 +901,53 @@ Implemented and verified Phase 9.1 — Secure Tutorial Package Archive and CLI f
 ### Next Step
 - Review and stage Phase 9.1 files when approved.
 - Proceed to Phase 9.2: Cryptographic Integrity, Trust Verification & Security Sandboxing.
+
+---
+
+## Task: Phase 9.2 — Cryptographic Integrity & Provenance Trust Model
+
+**Date:** 2026-11-12
+**Phase:** 9.2
+
+### Summary
+Implemented and verified Phase 9.2 — Cryptographic Integrity & Provenance Trust Model for OCTA:
+1. Integrated standard `cryptography>=42.0.0` library without custom primitives or embedded private keys.
+2. Enhanced `TutorialPluginManifest` in `src/octa/tutorials/plugins.py` to support `asset_digests` and `signature` blocks, including validation of hex digest lengths and signature schemas.
+3. Defined project-specific OCTA Canonical Manifest Byte Format (`canonical_manifest_bytes`) in `src/octa/tutorials/packaging.py` for deterministic manifest byte encoding across platforms and formatting variations.
+4. Implemented `TrustedKey` dataclass and `TrustStore` for public key management, with disk loading (`from_json_file`), ID/key lookups, and an empty default trust store to prevent unverified claims of official provenance.
+5. Implemented Ed25519 digital signature signing (`sign_manifest`) and strictly offline signature verification (`verify_manifest_signature`) with zero network dependencies.
+6. Implemented four-tier package trust classification (`PackageTrustLevel`): `TRUSTED_SIGNED`, `SIGNED_UNKNOWN_KEY`, `UNSIGNED_COMMUNITY`, and `INVALID_TAMPERED`.
+7. Enhanced `pack_tutorial_package` to automatically calculate deterministic SHA-256 digests for all referenced tutorial files and safe documentation, embed them into `plugin.json`, and optionally sign the canonical manifest via `--signing-key` and `--key-id`.
+8. Enhanced `verify_tutorial_package` to verify SHA-256 asset digests against `manifest.asset_digests`, ensure all tutorial files have digests, verify Ed25519 signatures against the active `TrustStore`, and classify trust levels.
+9. Extended CLI commands in `src/octa/__main__.py`: `octa pack` accepts `--signing-key` and `--key-id`, and `octa verify` accepts `--trust-store`.
+10. Added 11 unit and integration tests in `tests/unit/test_tutorial_packaging.py` bringing the packaging test suite to 29 tests covering canonical manifest byte formatting, Unicode character stability, known test vectors, signed/unknown/unsigned verification, tampered assets, invalid signatures, malformed trust stores, and CLI workflows.
+
+### Files Changed
+- `pyproject.toml` — Added `cryptography>=42.0.0` dependency.
+- `octa.spec` — Added `cryptography` to PyInstaller hidden imports.
+- `src/octa/tutorials/plugins.py` — Added `asset_digests` and `signature` to `TutorialPluginManifest`, schema validation, and `to_dict()`.
+- `src/octa/tutorials/packaging.py` — Implemented `canonical_manifest_bytes`, `PackageTrustLevel`, `TrustedKey`, `TrustStore`, `sign_manifest`, `verify_manifest_signature`, asset digest validation, CLI signing and trust store arguments.
+- `src/octa/tutorials/__init__.py` — Exported Phase 9.2 classes and functions.
+- `src/octa/__main__.py` — Added `--signing-key`, `--key-id`, and `--trust-store` CLI arguments.
+- `tests/unit/test_tutorial_packaging.py` — Added 11 unit tests covering Phase 9.2 cryptographic integrity and provenance.
+- `ROADMAP.md` — Updated Phase 9.2 milestone items and marked complete.
+- `README.md` — Updated status line, What Works Now, roadmap table, and test counts.
+- `CHANGELOG.md` — Added Phase 9.2 entry under [Unreleased].
+- `docs/architecture.md` — Documented cryptographic integrity and provenance architecture.
+- `docs/PROGRESS.md` — Appended this progress entry.
+
+### Validation
+- **Packaging Test Suite**: Ran `pytest tests/unit/test_tutorial_packaging.py -v`: 29 passed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 373 passed, 1 skipped.
+- **Godot Enhanced Character Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_enhanced_character.gd`: 66 passed, 0 failed.
+- **Godot Protocol Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_ws_protocol.gd`: 13 passed, 0 failed.
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 78 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 9.2 files when approved.
+- Proceed to Phase 9.3: Desktop Plugin Manager UI & Dynamic Catalog Integration.

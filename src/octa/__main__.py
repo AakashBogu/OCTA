@@ -78,6 +78,18 @@ def create_parser() -> argparse.ArgumentParser:
         default=False,
         help="Overwrite destination archive if it already exists.",
     )
+    pack_parser.add_argument(
+        "--signing-key",
+        type=Path,
+        default=None,
+        help="Optional path or hex for Ed25519 private key to sign package.",
+    )
+    pack_parser.add_argument(
+        "--key-id",
+        type=str,
+        default="community",
+        help="Key identifier associated with the signing key (default: 'community').",
+    )
 
     # verify subcommand
     verify_parser = subparsers.add_parser(
@@ -95,6 +107,12 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Display all file entries in the archive.",
+    )
+    verify_parser.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional path to custom JSON trust store file of pinned public keys.",
     )
 
     return parser

@@ -1,6 +1,6 @@
 # OCTA — Roadmap
 
-> **Last updated:** 2026-11-11
+> **Last updated:** 2026-11-12
 >
 > Milestones marked with [x] have been completed and verified.
 
@@ -217,17 +217,22 @@
 - [x] Strict security guards: rejection of executables, scripts, symlinks, backslashes, absolute/drive paths, duplicate entries, and zip bombs
 - [x] 18 unit tests covering roundtrip packaging, malicious archives, quotas, and CLI subcommands (`tests/unit/test_tutorial_packaging.py`)
 
-### Phase 9.2 — Cryptographic Integrity, Trust Verification & Security Sandboxing
-- [ ] Digital signature verification (manifest signing) for author identity and tamper detection
-- [ ] Trust classification policy: Verified/Signed vs Unsigned Community packages
-- [ ] Strict rejection of corrupted, tampered, or path-escaping archives before disk extraction
-- [ ] Read-only unpack sandbox in isolated user plugin storage (`%LOCALAPPDATA%\OCTA\plugins\installed\`)
+### Phase 9.2 — Cryptographic Integrity & Provenance Trust Model *(complete)*
+- [x] Deterministic project-specific canonical manifest byte format (`canonical_manifest_bytes`) with lexicographical key sorting, compact separators, literal UTF-8 encoding, and signature exclusion
+- [x] Deterministic per-asset SHA-256 digest calculation and verification (`asset_digests`) binding all tutorial files cryptographically
+- [x] Ed25519 digital signature signing and verification using `cryptography>=42.0.0`
+- [x] Documented public-key trust store (`TrustStore`, `TrustedKey`) loaded from disk or custom configurations, provisioned with an empty default trust store to prevent unverified claims of official provenance
+- [x] Four-tier package trust classification policy: `TRUSTED_SIGNED` (pinned key), `SIGNED_UNKNOWN_KEY` (valid signature by unpinned key), `UNSIGNED_COMMUNITY` (no signature), and `INVALID_TAMPERED` (corrupted digests, bad signature, or schema failure)
+- [x] Zero-network offline verification enforcing local-only cryptographic guarantees without external lookups
+- [x] Strict rejection of asset tampering, altered manifests, corrupted signatures, and unreferenced assets
+- [x] CLI support for package signing (`octa pack --signing-key <key> --key-id <id>`) and trust store inspection (`octa verify --trust-store <store.json>`)
+- [x] 29 comprehensive packaging and cryptography unit tests (`tests/unit/test_tutorial_packaging.py`) covering deterministic canonical manifest hashing, known test vectors, trusted/unknown/unsigned verification, tampered assets, invalid signatures, malformed trust stores, and CLI workflows
 
-### Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration
+### Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration *(planned)*
 - [ ] In-app Plugin Manager dialog (`PluginManagerDialog`) accessible from `DiagnosticWindow`
 - [ ] Visual listing of active tutorials and plugins with author, version, description, and trust badge
 - [ ] Safe package installation workflow (file picker -> pre-flight inspection modal -> consent confirmation -> extraction)
-- [ ] Safe uninstallation workflow removing package directories without affecting other plugins
+- [ ] Isolated user plugin storage (`%LOCALAPPDATA%\OCTA\plugins\installed\`) with safe uninstallation
 - [ ] Dynamic catalog synchronization (`tutorials_catalog_reloaded`) updating the tutorial selector without application restart
 
 ---

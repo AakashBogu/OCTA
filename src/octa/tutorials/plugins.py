@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +62,8 @@ class TutorialPluginManifest:
     schema_version: str = "1.0"
     author: str = ""
     description: str = ""
+    asset_digests: dict[str, str] = field(default_factory=dict)
+    signature: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version not in SUPPORTED_PLUGIN_SCHEMA_VERSIONS:
@@ -116,6 +118,47 @@ class TutorialPluginManifest:
         )
         object.__setattr__(self, "tutorial_files", tuple(clean_files))
 
+        if not isinstance(self.asset_digests, dict):
+            raise PluginManifestError("Field 'asset_digests' must be a dictionary.")
+        clean_digests: dict[str, str] = {}
+        for path_key, digest_val in self.asset_digests.items():
+            if not isinstance(path_key, str) or not isinstance(digest_val, str):
+                raise PluginManifestError("Entries in 'asset_digests' must be strings.")
+            cleaned_p = path_key.strip().replace("\\", "/")
+            path_obj = Path(cleaned_p)
+            if path_obj.is_absolute():
+                raise PluginSecurityError(
+                    f"Absolute paths are forbidden in asset_digests: {path_key!r}."
+                )
+            if ".." in path_obj.parts:
+                raise PluginSecurityError(
+                    f"Path traversal ('..') is forbidden in asset_digests: {path_key!r}."
+                )
+            clean_digests[cleaned_p] = digest_val.strip().lower()
+        object.__setattr__(self, "asset_digests", clean_digests)
+
+        if self.signature is not None and not isinstance(self.signature, dict):
+            raise PluginManifestError("Field 'signature' must be a dictionary.")
+
+    def to_dict(self, *, include_signature: bool = True) -> dict[str, Any]:
+        """Convert manifest to dictionary representation."""
+        result: dict[str, Any] = {
+            "schema_version": self.schema_version,
+            "id": self.plugin_id,
+            "name": self.name,
+            "version": self.version,
+            "tutorial_files": list(self.tutorial_files),
+        }
+        if self.author:
+            result["author"] = self.author
+        if self.description:
+            result["description"] = self.description
+        if self.asset_digests:
+            result["asset_digests"] = dict(self.asset_digests)
+        if include_signature and self.signature is not None:
+            result["signature"] = dict(self.signature)
+        return result
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TutorialPluginManifest:
         """Parse and validate a dictionary loaded from plugin.json."""
@@ -131,6 +174,8 @@ class TutorialPluginManifest:
             "description",
             "tutorial_file",
             "tutorial_files",
+            "asset_digests",
+            "signature",
         }
         extra_keys = set(data.keys()) - allowed_keys
         if extra_keys:
@@ -171,6 +216,8 @@ class TutorialPluginManifest:
             author=str(data.get("author", "")),
             description=str(data.get("description", "")),
             tutorial_files=tuple(raw_files),
+            asset_digests=dict(data.get("asset_digests", {})),
+            signature=data.get("signature"),
         )
 
 

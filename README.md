@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 9.1 — Secure Tutorial Package Archive & CLI (complete)
+**Status:** 🟢 Phase 9.2 — Cryptographic Integrity & Provenance Trust Model (complete)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation), and Phase 9.1 (Secure tutorial package archive format `.octapack`, CLI packager and zero-extraction verifier, Zip Slip defense, and quota enforcement) are implemented and verified.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation), Phase 9.1 (Secure tutorial package archive format `.octapack`, CLI packager and zero-extraction verifier, Zip Slip defense, and quota enforcement), and Phase 9.2 (Cryptographic integrity, deterministic asset digests, Ed25519 manifest signing/verification, pinned trust store, three-tier trust classification, and offline verification) are implemented and verified.
 
 ---
 
@@ -126,6 +126,19 @@ OCTA currently includes eleven verified subsystems:
 - **Code Execution & Symlink Prevention:** Forbids all script and binary extensions (`.exe`, `.dll`, `.bat`, `.ps1`, `.py`, `.sh`, `.vbs`, etc.), symlinks, and executable permissions.
 - **CLI Packaging & Verification Commands:** Built-in subcommands `octa pack <plugin_dir> -o <out.octapack>` and `octa verify <pkg.octapack>` (`--verbose`) with clear diagnostics and non-zero exit codes for invalid inputs.
 
+### 13. Phase 9.2 Cryptographic Integrity & Provenance Trust Model (`src/octa/tutorials/packaging.py`)
+- **Deterministic SHA-256 Asset Digests (`asset_digests`):** Every packaged tutorial file is individually hashed and recorded in `plugin.json`. Archive verification enforces that every referenced file exists, has a matching digest, and contains valid task schema.
+- **OCTA Canonical Manifest Byte Format:** Manifest JSON is normalized deterministically (`canonical_manifest_bytes`) with lexicographical key sorting (`sort_keys=True`), compact separators (`(',', ':')`), literal UTF-8 encoding (`ensure_ascii=False`), and strict exclusion of the `signature` field, guaranteeing reproducible cross-platform bytes for signing and verification without claiming generic RFC 8785 compliance.
+- **Ed25519 Manifest Signing & Verification:** Uses `cryptography>=42.0.0` for cryptographic signatures (`sign_manifest`, `verify_manifest_signature`). Private keys are never hardcoded or embedded in the repository.
+- **Public-Key Trust Store (`TrustStore`, `TrustedKey`):** Manages trusted signer public keys from JSON files or programmatic configuration. Ships with an empty default trust store out-of-the-box, ensuring official provenance is never implied unless authentic keys are established through verified project release channels.
+- **Four-Tier Trust Classification:** Classifies packages into:
+  1. `TRUSTED_SIGNED`: Valid signature matching a pinned key in the configured trust store.
+  2. `SIGNED_UNKNOWN_KEY`: Cryptographically valid signature, but signed with an unpinned / unknown public key.
+  3. `UNSIGNED_COMMUNITY`: Valid asset digests and manifest structure, but carries no digital signature.
+  4. `INVALID_TAMPERED`: Asset digest mismatch, corrupted/forged signature, modified payload, or malformed cryptographic structures.
+- **Strict Offline-First Security:** Zero network requests during signature and trust verification; operates completely offline.
+- **CLI Signing & Verification:** `octa pack` supports `--signing-key` and `--key-id`, and `octa verify` supports `--trust-store` for custom trust root inspection.
+
 ---
 
 ## Proposed Architecture
@@ -185,14 +198,14 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 8.2 | Multi-monitor geometry & display adaptation | ✅ Complete |
 | 8.3 | Accessibility adaptations | ✅ Complete |
 | 9.1 | Secure tutorial package archive & CLI | ✅ Complete |
-| 9.2 | Cryptographic integrity & trust model | 📋 Planned |
+| 9.2 | Cryptographic integrity & trust model | ✅ Complete |
 | 9.3 | Desktop plugin manager UI & catalog sync | 📋 Planned |
 
 ---
 
 ## Development Status
 
-- **Current phase:** Phase 9.1 Complete — Secure Tutorial Package Archive (`.octapack`) & CLI implemented and verified with atomic packager, zero-extraction verifier, Zip Slip defense, and quota enforcement.
+- **Current phase:** Phase 9.2 Complete — Cryptographic Integrity & Provenance Trust Model implemented and verified with deterministic SHA-256 asset digests, OCTA canonical manifest byte format, Ed25519 manifest signing/verification, public-key trust store, four-tier trust classification, and offline verification.
 - **What exists:**
   - Runnable Godot 4.7 project with transparent borderless desktop overlay, articulated 3D character, 6 animations, `AnimationTree` state machine, 100% procedural assets under MIT license (`ASSETS_LICENSE.md`), and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
@@ -204,8 +217,9 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
   - Phase 8.2 Multi-Monitor Geometry & Display Adaptation (`src/octa/intelligence/display.py`) with `DisplayManager` monitor discovery, negative desktop coordinates, global-to-local coordinate transformations, DPI scaling, monitor selection in `DiagnosticWindow`, and dynamic disconnect handling.
   - Phase 8.3 Accessibility Adaptations (`src/octa/intelligence/overlay.py`, `src/octa/tutorials/sound.py`) with high-contrast dual-stroke cues, non-color shape indicators, dynamic text scaling (0.5x to 3.0x), in-memory harmonic completion chime synthesis, optional audio player, accessible Qt labeling, and keyboard focus policies.
   - Phase 9.1 Secure Tutorial Package Archive & CLI (`src/octa/tutorials/packaging.py`, `src/octa/__main__.py`) with atomic `.octapack` creation (`octa pack`), zero-extraction in-memory verification (`octa verify`), strict Zip Slip traversal rejection, executable/script exclusion, and quota checks (100 files, 10 MB compressed, 25 MB expanded, $\le 50:1$ compression ratio).
-  - Full automated test suite: 362 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
-- **What does not exist yet:** Wake-word detection (explicitly deferred), cloud sync for progress, and external plugin manager UI (Phase 9.3).
+  - Phase 9.2 Cryptographic Integrity & Provenance Trust Model (`src/octa/tutorials/packaging.py`) with deterministic canonical manifest bytes (`canonical_manifest_bytes`), asset hashing, Ed25519 signing/verification via `cryptography>=42.0.0`, `TrustStore`, and four-tier trust classification (`TRUSTED_SIGNED`, `SIGNED_UNKNOWN_KEY`, `UNSIGNED_COMMUNITY`, `INVALID_TAMPERED`).
+  - Full automated test suite: 373 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
+- **What does not exist yet:** Wake-word detection (explicitly deferred), cloud sync for progress, and desktop plugin manager UI & disk installation (Phase 9.3).
 
 ---
 

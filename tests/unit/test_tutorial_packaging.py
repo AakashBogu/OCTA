@@ -1,4 +1,4 @@
-"""Unit tests for Phase 9.1 — Secure Tutorial Package Archive and CLI."""
+"""Unit tests for Phase 9.1 & 9.2 — Secure Tutorial Package Archive, Integrity & Trust Model."""
 
 from __future__ import annotations
 
@@ -8,15 +8,23 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from octa.__main__ import main
 from octa.tutorials.packaging import (
     MAX_PACKAGE_FILE_COUNT,
     PACKAGE_EXTENSION,
     PackageFormatError,
+    PackageIntegrityError,
     PackageQuotaError,
     PackageSecurityError,
+    PackageTrustLevel,
     PackageVerificationResult,
+    TrustedKey,
+    TrustStore,
+    canonical_json_bytes,
+    canonical_manifest_bytes,
+    compute_bytes_sha256,
     compute_file_sha256,
     pack_tutorial_package,
     verify_tutorial_package,
@@ -429,3 +437,360 @@ def test_cli_pack_and_verify_failure_exit_codes(
     assert verify_fail == 1
     captured_v_fail = capsys.readouterr()
     assert "[FAIL] Package validation failed" in captured_v_fail.err
+
+
+# ──────────────────────────────────────────
+# Phase 9.2 Cryptographic Integrity & Trust Tests
+# ──────────────────────────────────────────
+
+
+def test_deterministic_canonical_manifest_bytes() -> None:
+    """Canonical manifest serialization is deterministic and stable for supported values."""
+    # Key order independence at top and nested levels
+    dict_a = {
+        "version": "1.0.0",
+        "name": "Alpha Pack",
+        "id": "pack-a",
+        "asset_digests": {"b.json": "hash-b", "a.json": "hash-a"},
+    }
+    dict_b = {
+        "id": "pack-a",
+        "asset_digests": {"a.json": "hash-a", "b.json": "hash-b"},
+        "version": "1.0.0",
+        "name": "Alpha Pack",
+    }
+    assert canonical_manifest_bytes(dict_a) == canonical_manifest_bytes(dict_b)
+
+    # Unicode preservation: characters are encoded directly in UTF-8 without \uXXXX escaping
+    unicode_manifest = {
+        "id": "intl-pack",
+        "name": "Café München",
+        "author": "山田太郎",
+    }
+    unicode_bytes = canonical_manifest_bytes(unicode_manifest)
+    assert b'"author":"\xe5\xb1\xb1\xe7\x94\xb0\xe5\xa4\xaa\xe9\x83\x8e"' in unicode_bytes
+    assert b'"name":"Caf\xc3\xa9 M\xc3\xbcnchen"' in unicode_bytes
+    assert b"\\u" not in unicode_bytes
+
+    # Signature exclusion: presence of signature field does not affect canonical bytes
+    dict_with_sig = dict(dict_a)
+    dict_with_sig["signature"] = {"algorithm": "ed25519", "key_id": "test", "public_key": "abc"}
+    assert canonical_manifest_bytes(dict_with_sig) == canonical_manifest_bytes(dict_a)
+
+    # Known fixed test vector verification
+    known_manifest = {
+        "schema_version": "1.0",
+        "id": "known-vector",
+        "name": "Known Vector Tutorial",
+        "version": "1.0.0",
+        "author": "OCTA Team",
+        "description": "Deterministic test vector",
+        "tutorial_files": ["tutorials/one.json"],
+        "asset_digests": {"tutorials/one.json": "0" * 64},
+    }
+    expected_bytes = (
+        b'{"asset_digests":{"tutorials/one.json":'
+        b'"0000000000000000000000000000000000000000000000000000000000000000"},'
+        b'"author":"OCTA Team","description":"Deterministic test vector","id":"known-vector",'
+        b'"name":"Known Vector Tutorial","schema_version":"1.0",'
+        b'"tutorial_files":["tutorials/one.json"],"version":"1.0.0"}'
+    )
+    actual_bytes = canonical_manifest_bytes(known_manifest)
+    assert actual_bytes == expected_bytes
+    assert canonical_json_bytes(known_manifest) == actual_bytes
+    assert compute_bytes_sha256(actual_bytes) == compute_bytes_sha256(expected_bytes)
+
+
+def test_signed_package_with_pinned_key_verifies_as_trusted_signed(tmp_path: Path) -> None:
+    """A package signed by a pinned key in the TrustStore classifies as TRUSTED_SIGNED."""
+    src_dir = _create_sample_plugin_dir(tmp_path)
+    output_pkg = tmp_path / "signed_trusted.octapack"
+
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    pub_hex = private_key.public_key().public_bytes_raw().hex()
+
+    trusted_key = TrustedKey(
+        key_id="trusted-edu",
+        name="Trusted Educator Keys",
+        algorithm="ed25519",
+        public_key_hex=pub_hex,
+    )
+    trust_store = TrustStore([trusted_key])
+
+    created = pack_tutorial_package(
+        src_dir,
+        output_path=output_pkg,
+        signing_key=private_key,
+        key_id="trusted-edu",
+    )
+    assert created.is_file()
+
+    result = verify_tutorial_package(created, trust_store=trust_store, raise_on_error=True)
+    assert result.is_valid is True
+    assert result.trust_level == PackageTrustLevel.TRUSTED_SIGNED
+    assert result.is_trusted_signed is True
+    assert result.is_signed_unknown_key is False
+    assert result.is_unsigned_community is False
+    assert result.signer_id == "trusted-edu"
+    assert result.signer_name == "Trusted Educator Keys"
+    assert result.asset_digests_verified >= 3
+
+
+def test_signed_package_with_unknown_key_verifies_as_signed_unknown_key(tmp_path: Path) -> None:
+    """A package signed by an unpinned key classifies as SIGNED_UNKNOWN_KEY."""
+    src_dir = _create_sample_plugin_dir(tmp_path)
+    output_pkg = tmp_path / "signed_unknown.octapack"
+
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    empty_trust_store = TrustStore()
+
+    created = pack_tutorial_package(
+        src_dir,
+        output_path=output_pkg,
+        signing_key=private_key,
+        key_id="community-author",
+    )
+
+    result = verify_tutorial_package(created, trust_store=empty_trust_store, raise_on_error=True)
+    assert result.is_valid is True
+    assert result.trust_level == PackageTrustLevel.SIGNED_UNKNOWN_KEY
+    assert result.is_trusted_signed is False
+    assert result.is_signed_unknown_key is True
+    assert result.is_unsigned_community is False
+    assert "Unknown Signer" in result.signer_name
+
+
+def test_unsigned_package_verifies_as_unsigned_community(tmp_path: Path) -> None:
+    """An unsigned package with valid asset digests classifies as UNSIGNED_COMMUNITY."""
+    src_dir = _create_sample_plugin_dir(tmp_path)
+    output_pkg = tmp_path / "unsigned.octapack"
+
+    created = pack_tutorial_package(src_dir, output_path=output_pkg)
+    result = verify_tutorial_package(created, raise_on_error=True)
+
+    assert result.is_valid is True
+    assert result.trust_level == PackageTrustLevel.UNSIGNED_COMMUNITY
+    assert result.is_trusted_signed is False
+    assert result.is_signed_unknown_key is False
+    assert result.is_unsigned_community is True
+    assert result.signer_id == ""
+    assert result.asset_digests_verified >= 3
+
+
+def test_tampered_asset_triggers_digest_mismatch(tmp_path: Path) -> None:
+    """Modifying even one byte of a tutorial asset triggers digest mismatch and INVALID_TAMPERED."""
+    src_dir = _create_sample_plugin_dir(tmp_path)
+    pkg = pack_tutorial_package(src_dir, tmp_path / "tampered.octapack")
+
+    # Read all files from package and tamper with one tutorial file
+    tampered_pkg = tmp_path / "corrupted_asset.octapack"
+    with zipfile.ZipFile(pkg, "r") as z_in, zipfile.ZipFile(tampered_pkg, "w") as z_out:
+        for item in z_in.infolist():
+            data = z_in.read(item.filename)
+            if item.filename == "tutorials/draw_shape.json":
+                # Inject a modification into the JSON payload
+                tampered_data = data.replace(b"Select the rectangle tool", b"TAMPERED PAYLOAD")
+                z_out.writestr(item, tampered_data)
+            else:
+                z_out.writestr(item, data)
+
+    res = verify_tutorial_package(tampered_pkg)
+    assert res.is_valid is False
+    assert res.trust_level == PackageTrustLevel.INVALID_TAMPERED
+    assert any("Asset digest mismatch" in err for err in res.errors)
+
+    with pytest.raises(PackageIntegrityError, match="Asset digest mismatch"):
+        verify_tutorial_package(tampered_pkg, raise_on_error=True)
+
+
+def test_tampered_signature_bytes_rejected(tmp_path: Path) -> None:
+    """Tampering with signature bytes in plugin.json triggers cryptographic failure."""
+    src_dir = _create_sample_plugin_dir(tmp_path)
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    pkg = pack_tutorial_package(
+        src_dir,
+        tmp_path / "signed_orig.octapack",
+        signing_key=private_key,
+    )
+
+    bad_sig_pkg = tmp_path / "bad_sig.octapack"
+    with zipfile.ZipFile(pkg, "r") as z_in, zipfile.ZipFile(bad_sig_pkg, "w") as z_out:
+        for item in z_in.infolist():
+            data = z_in.read(item.filename)
+            if item.filename == "plugin.json":
+                manifest_obj = json.loads(data.decode("utf-8"))
+                # Flip characters in the signature hex string
+                sig_hex = manifest_obj["signature"]["signature"]
+                flipped = ("0" if sig_hex[0] != "0" else "1") + sig_hex[1:]
+                manifest_obj["signature"]["signature"] = flipped
+                z_out.writestr(item, json.dumps(manifest_obj).encode("utf-8"))
+            else:
+                z_out.writestr(item, data)
+
+    res = verify_tutorial_package(bad_sig_pkg)
+    assert res.is_valid is False
+    assert res.trust_level == PackageTrustLevel.INVALID_TAMPERED
+    assert any("signature verification failed" in err for err in res.errors)
+
+    with pytest.raises(PackageIntegrityError, match="signature verification failed"):
+        verify_tutorial_package(bad_sig_pkg, raise_on_error=True)
+
+
+def test_tampered_manifest_payload_with_valid_signature_rejected(tmp_path: Path) -> None:
+    """Altering manifest metadata (e.g. version) without re-signing causes signature failure."""
+    src_dir = _create_sample_plugin_dir(tmp_path)
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    pkg = pack_tutorial_package(
+        src_dir,
+        tmp_path / "signed_orig2.octapack",
+        signing_key=private_key,
+    )
+
+    tampered_manifest_pkg = tmp_path / "tampered_meta.octapack"
+    with zipfile.ZipFile(pkg, "r") as z_in, zipfile.ZipFile(tampered_manifest_pkg, "w") as z_out:
+        for item in z_in.infolist():
+            data = z_in.read(item.filename)
+            if item.filename == "plugin.json":
+                manifest_obj = json.loads(data.decode("utf-8"))
+                manifest_obj["version"] = "9.9.9"  # unauthorized version bump
+                z_out.writestr(item, json.dumps(manifest_obj).encode("utf-8"))
+            else:
+                z_out.writestr(item, data)
+
+    res = verify_tutorial_package(tampered_manifest_pkg)
+    assert res.is_valid is False
+    assert res.trust_level == PackageTrustLevel.INVALID_TAMPERED
+    assert any("signature verification failed" in err for err in res.errors)
+
+
+def test_missing_asset_digest_rejected(tmp_path: Path) -> None:
+    """Manifest with missing asset digest for a referenced tutorial is rejected."""
+    bad_manifest_pkg = tmp_path / "missing_digest.octapack"
+    manifest_data = dict(SAMPLE_MANIFEST)
+    draw_shape_bytes = json.dumps(SAMPLE_TUTORIAL_1).encode("utf-8")
+    draw_digest = compute_bytes_sha256(draw_shape_bytes)
+    manifest_data["asset_digests"] = {"tutorials/draw_shape.json": draw_digest}
+
+    with zipfile.ZipFile(bad_manifest_pkg, "w") as zf:
+        zf.writestr("plugin.json", json.dumps(manifest_data))
+        zf.writestr("tutorials/draw_shape.json", draw_shape_bytes)
+        zf.writestr("tutorials/fill_bucket.json", json.dumps(SAMPLE_TUTORIAL_2).encode("utf-8"))
+
+    res = verify_tutorial_package(bad_manifest_pkg)
+    assert res.is_valid is False
+    assert res.trust_level == PackageTrustLevel.INVALID_TAMPERED
+    assert any("missing from asset_digests" in err for err in res.errors)
+
+
+def test_malformed_trust_store_entries_rejected() -> None:
+    """TrustedKey and TrustStore strictly validate inputs and reject malformed data."""
+    # Invalid key_id
+    with pytest.raises(ValueError, match="key_id"):
+        TrustedKey(key_id="", name="Valid", algorithm="ed25519", public_key_hex="a" * 64)
+
+    # Invalid algorithm
+    with pytest.raises(ValueError, match="Unsupported algorithm"):
+        TrustedKey(key_id="k1", name="Valid", algorithm="rsa", public_key_hex="a" * 64)
+
+    # Invalid public key hex length
+    with pytest.raises(ValueError, match="must be exactly 64 characters"):
+        TrustedKey(key_id="k1", name="Valid", algorithm="ed25519", public_key_hex="abcd")
+
+    # Non-hex characters
+    with pytest.raises(ValueError, match="Invalid hexadecimal"):
+        TrustedKey(key_id="k1", name="Valid", algorithm="ed25519", public_key_hex="z" * 64)
+
+    # TrustStore from invalid data
+    with pytest.raises(ValueError, match="must be a JSON object"):
+        TrustStore.from_dict(["not", "dict"])  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="must be a list"):
+        TrustStore.from_dict({"trusted_keys": "not_list"})
+
+
+def test_trust_store_from_json_file(tmp_path: Path) -> None:
+    """TrustStore loads pinned keys from a validated JSON file on disk."""
+    store_file = tmp_path / "trust_store.json"
+    key_hex = "a" * 64
+    store_data = {
+        "trusted_keys": [
+            {
+                "key_id": "school-district",
+                "name": "School District Verified",
+                "algorithm": "ed25519",
+                "public_key_hex": key_hex,
+                "description": "District curriculum key",
+            }
+        ]
+    }
+    store_file.write_text(json.dumps(store_data), encoding="utf-8")
+
+    loaded_store = TrustStore.from_json_file(store_file)
+    assert len(loaded_store) == 1
+    assert loaded_store.is_trusted(key_hex) is True
+    entry = loaded_store.get_by_public_key(key_hex)
+    assert entry is not None
+    assert entry.key_id == "school-district"
+    assert entry.name == "School District Verified"
+
+
+def test_cli_signing_and_trust_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CLI supports --signing-key during packaging and --trust-store during verification."""
+    src_dir = _create_sample_plugin_dir(tmp_path)
+    target_pkg = tmp_path / "cli_signed.octapack"
+
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    key_file = tmp_path / "priv.key"
+    key_file.write_text(private_key.private_bytes_raw().hex(), encoding="utf-8")
+
+    pub_hex = private_key.public_key().public_bytes_raw().hex()
+    store_file = tmp_path / "trust_store.json"
+    store_file.write_text(
+        json.dumps(
+            {
+                "trusted_keys": [
+                    {
+                        "key_id": "octa-cli-key",
+                        "name": "CLI Test Authority",
+                        "algorithm": "ed25519",
+                        "public_key_hex": pub_hex,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Pack with signing key
+    pack_exit = main(
+        [
+            "pack",
+            str(src_dir),
+            "-o",
+            str(target_pkg),
+            "--signing-key",
+            str(key_file),
+            "--key-id",
+            "octa-cli-key",
+        ]
+    )
+    assert pack_exit == 0
+    captured_pack = capsys.readouterr()
+    assert "[SUCCESS] Package created successfully." in captured_pack.out
+
+    # Verify with trust store (pinned key -> TRUSTED_SIGNED)
+    verify_exit = main(["verify", str(target_pkg), "--trust-store", str(store_file)])
+    assert verify_exit == 0
+    captured_verify = capsys.readouterr()
+    assert "[PASS] Valid OCTA tutorial package." in captured_verify.out
+    assert "Trust Status:  TRUSTED_SIGNED" in captured_verify.out
+    assert "CLI Test Authority" in captured_verify.out
+
+    # Verify without trust store (default empty trust store -> SIGNED_UNKNOWN_KEY)
+    verify_default_exit = main(["verify", str(target_pkg)])
+    assert verify_default_exit == 0
+    captured_default = capsys.readouterr()
+    assert "[PASS] Valid OCTA tutorial package." in captured_default.out
+    assert "Trust Status:  SIGNED_UNKNOWN_KEY" in captured_default.out

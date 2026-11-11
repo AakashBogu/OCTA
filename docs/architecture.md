@@ -1,8 +1,8 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), and Phase 8.2 (Multi-monitor geometry and display adaptation) are implemented and verified.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), and Phase 9.2 (Cryptographic integrity & provenance trust model) are implemented and verified.
 >
-> **Last updated:** 2026-11-09
+> **Last updated:** 2026-11-12
 
 ---
 
@@ -1036,3 +1036,91 @@ OCTA Phase 9.1 introduces a portable, hardened package archive container (`.octa
 5. **Atomic Package Assembly & CLI Subcommands**:
    - `pack_tutorial_package()` builds packages atomically via `tempfile.mkstemp` in the target directory and verifies the temporary archive with `verify_tutorial_package()` before committing it via `os.replace`.
    - `src/octa/__main__.py` routes subcommands `pack` and `verify` to standalone console handlers, providing formatted terminal feedback and non-zero exit codes on failure without loading the GUI event loop.
+
+---
+
+## Phase 9.2 — Cryptographic Integrity & Provenance Trust Model Architecture
+
+### Overview
+
+Phase 9.2 establishes a deterministic cryptographic provenance and integrity layer for `.octapack` tutorial bundles. It addresses untrusted tutorial packages by binding all packaged assets via SHA-256 digests and validating author authenticity through standard Ed25519 digital signatures and pinned public key trust stores without network requests.
+
+```
+┌────────────────────────────────────────────────────────┐
+│               Tutorial Package Architecture            │
+│                                                        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │                    plugin.json                   │  │
+│  │  - id, name, version, author, description        │  │
+│  │  - tutorial_files: ["tutorials/step.json"]       │  │
+│  │  - asset_digests: {                              │  │
+│  │      "tutorials/step.json": "<sha256_hex>"       │  │
+│  │    }                                             │  │
+│  │  - signature: {                                  │  │
+│  │      "algorithm": "ed25519",                     │  │
+│  │      "key_id": "octa-official",                  │  │
+│  │      "public_key": "<64_hex_chars>",             │  │
+│  │      "signature": "<128_hex_chars>"              │  │
+│  │    }                                             │  │
+│  └──────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │             tutorials/step.json                  │  │
+│  │  (Payload cryptographically bound by digest)     │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
+                           │
+             verify_tutorial_package()
+                           │
+       ┌───────────────────┴───────────────────┐
+       ▼                                       ▼
+Asset Digest Check                      Signature Check
+• Compute asset SHA-256                 • Extract signature block
+• Compare with asset_digests            • Canonical manifest bytes
+• Verify every tutorial file            • Verify Ed25519 offline
+• Detect tampering or omissions         • Match public key in TrustStore
+       │                                       │
+       └───────────────────┬───────────────────┘
+                           │
+                           ▼
+               Package Verification Result
+        ┌──────────────────────────────────────┐
+        │  trust_level:                        │
+        │  • TRUSTED_SIGNED (Pinned key)       │
+        │  • SIGNED_UNKNOWN_KEY (Unpinned)     │
+        │  • UNSIGNED_COMMUNITY (Unsigned)     │
+        │  • INVALID_TAMPERED (Tampered)       │
+        └──────────────────────────────────────┘
+```
+
+### Architectural Principles
+
+1. **OCTA Canonical Manifest Byte Format**:
+   - Cryptographic signing requires stable, deterministic byte representations regardless of platform, dictionary key insertion order, or formatting variations.
+   - `canonical_manifest_bytes()` serializes JSON with `sort_keys=True`, compact separators `(',', ':')`, and literal UTF-8 encoding without ASCII escapes (`ensure_ascii=False`).
+   - The format is intentionally project-specific for manifest objects and avoids generic RFC 8785 claims.
+   - During signing and verification, the signature block itself is omitted from the canonical payload to prevent circular dependencies.
+
+2. **Hierarchical Cryptographic Binding**:
+   - `asset_digests` in `plugin.json` records SHA-256 digests for all referenced tutorial files and documentation.
+   - `verify_tutorial_package()` computes the SHA-256 hash of each uncompressed file and asserts a match against `asset_digests`.
+   - Because the signature covers `plugin.json` (which contains `asset_digests`), a single Ed25519 signature cryptographically binds the entire package archive without requiring separate signature files for each asset.
+
+3. **Standard Ed25519 Cryptography**:
+   - Uses `cryptography.hazmat.primitives.asymmetric.ed25519` from the `cryptography` library (`cryptography>=42.0.0`).
+   - No custom cryptographic primitives are implemented.
+   - Private signing keys are never embedded in the repository or application binaries.
+
+4. **Trust Store & Key Management**:
+   - `TrustStore` holds trusted `TrustedKey` instances (validating 64-character hex strings for 32-byte Ed25519 public keys).
+   - Ships with an empty default trust store (`DEFAULT_TRUSTED_KEYS = ()`) to prevent unverified claims of "official" provenance until authentic keys are published via verified project distribution channels.
+   - Custom trust stores can be loaded from secure JSON files via `TrustStore.from_json_file()` or `--trust-store` CLI flag.
+
+5. **Four-Tier Trust Classification**:
+   - **`PackageTrustLevel.TRUSTED_SIGNED`**: The package has valid asset digests and a cryptographically valid Ed25519 signature whose public key exists in the active `TrustStore`.
+   - **`PackageTrustLevel.SIGNED_UNKNOWN_KEY`**: The package has valid asset digests and a cryptographically valid Ed25519 signature, but the signing public key is unpinned / unknown in the active `TrustStore`.
+   - **`PackageTrustLevel.UNSIGNED_COMMUNITY`**: The package has valid asset digests and valid schema, but carries no digital signature.
+   - **`PackageTrustLevel.INVALID_TAMPERED`**: The package has modified content, corrupted asset digests, invalid signature bytes, or malformed cryptographic structures.
+
+6. **Strict Offline Operation**:
+   - Trust and signature verification performs zero network calls.
+   - Trust is established solely through pinned public keys in the local trust store.

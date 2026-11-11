@@ -66,6 +66,7 @@ hidden_imports = [
     "PySide6.QtMultimedia",
     "psutil",
     "dotenv",
+    "cryptography",
 ]
 
 # Explicit exclusions to ensure zero dev tools, tests, or build caches leak
