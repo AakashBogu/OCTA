@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 7.0 — Enhanced Godot Character (complete)
+**Status:** 🟢 Phase 8.1 — External Tutorial Plugin System (complete)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), and Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations) are implemented and verified.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), and Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload) are implemented and verified.
 
 ---
 
@@ -95,6 +95,13 @@ OCTA currently includes eight verified subsystems:
 
 > **Component Coupling Note:** Python manages the Godot process, hosts the authenticated localhost WebSocket server, provides the PySide6 system tray and diagnostic UI, supplies the Phase 4.0 screen capture, consent, LLM verification, and visual overlay modules, and provides the Phase 5.0 push-to-talk voice pipeline. End-to-end interactive tutorial loop orchestration is planned for Phase 6.0.
 
+### 9. Phase 8.1 External Tutorial Plugin System (`src/octa/tutorials/plugins.py`)
+- **Declarative Local Plugin Loader:** Loads external tutorial packs from directory trees using standard `plugin.json` manifests (`TutorialPluginManifest`, `load_tutorial_plugin`, `discover_tutorial_plugins`).
+- **Strict Untrusted Data Security:** All external plugin content is treated as untrusted data. No Python or executable code is permitted (pure declarative JSON only). Rejects absolute file paths, directory traversal (`..`), and symlinks that resolve outside the plugin directory (`is_relative_to`). All plugin files are accessed in read-only mode.
+- **Built-in ID Collision Protection:** Built-in tutorial IDs (`BUILTIN_TASK_IDS`) are strictly reserved. External plugins attempting to use or shadow existing task IDs are rejected with `ID_COLLISION` diagnostics to protect core tutorial integrity.
+- **Secret-Safe Diagnostics & Startup Resilience:** Invalid or malformed plugins produce clean, secret-safe diagnostic records (`PluginLoadDiagnostic`) without crashing application startup, the engine, or the desktop monitor window.
+- **Dynamic Reload & Provenance Integration:** Seamlessly integrates with `TutorialCatalog`, `TutorialEngine`, and `DiagnosticWindow` with distinct plugin provenance tags (`[Plugin: <name>]`), signal-driven UI combo refreshment, and on-demand reloading via `DesktopController.reload_tutorial_plugins()`.
+
 ---
 
 ## Proposed Architecture
@@ -150,12 +157,13 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 5.0 | Voice interaction (Push-to-Talk) | ✅ Complete |
 | 6.0 | End-to-end tutorial engine & packaging | ✅ Complete |
 | 7.0 | Enhanced Godot character & desktop window | ✅ Complete |
+| 8.1 | External tutorial plugin system | ✅ Complete |
 
 ---
 
 ## Development Status
 
-- **Current phase:** Phase 7.0 Complete — Enhanced Godot character, transparent borderless desktop window, mouse dragging, 6 expressive animations (`idle`, `listening`, `thinking`, `talking`, `pointing`, `celebrating`), and `AnimationTree` state machine implemented, documented, and verified.
+- **Current phase:** Phase 8.1 Complete — External Tutorial Plugin System implemented, documented, and verified with strict security sandboxing, ID collision prevention, dynamic reload, and UI provenance tracking.
 - **What exists:**
   - Runnable Godot 4.7 project with transparent borderless desktop overlay, articulated 3D character, 6 animations, `AnimationTree` state machine, 100% procedural assets under MIT license (`ASSETS_LICENSE.md`), and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
@@ -163,7 +171,8 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
   - Phase 4.0 Intelligence Layer (`src/octa/intelligence`) with user-initiated in-memory screen/region capture (`ScreenCapturer`), task/step/outcome/result validation (`TaskDefinition`, `ProgressResult`), screen-sharing consent disclosure and cancellation (`ScreenShareConsentDialog`, `ConsentManager`), isolated OpenAI-compatible LLM adapter (`OpenAICompatibleAdapter`), conservative progress verifier (`ProgressVerifier`), and click-through Qt visual overlay (`GuidanceOverlayWidget`).
   - Phase 5.0 Voice Interaction (`src/octa/voice`) with push-to-talk in-memory audio capture (`PushToTalkRecorder`), injectable STT/TTS/playback interfaces (`SpeechToTextProvider`, `TextToSpeechProvider`, `AudioPlaybackBackend`), mocked and remote HTTPS adapters (`MockSTTProvider`, `MockTTSProvider`, `RemoteHTTPSTTProvider`, `RemoteHTTPTTSProvider`), remote voice consent disclosure (`VoiceConsentDialog`, `VoiceConsentManager`), task/instruction pipeline routing (`VoiceInteractionController`), visible microphone status, and immediate cancel/stop.
   - Phase 6.0 Tutorial Engine (`src/octa/tutorials`) with `TutorialEngine` orchestrating tutorial selection, text-based step navigation and manual completion, user-initiated capture with single-use consent and background AI verification, overlay and voice synchronization, built-in sample tutorials (OCTA welcome, Windows Notepad, Windows File Explorer), structured feedback collection (`FeedbackCollector`, `TutorialFeedbackDialog`, `TutorialSessionMetrics`), performance optimizations, and standalone Windows packaging (`octa.spec`, `build_windows_dist.py`).
-  - Full automated test suite: 288 Python tests passing + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
+  - Phase 8.1 External Tutorial Plugin System (`src/octa/tutorials/plugins.py`, `catalog.py`) with `plugin.json` discovery, strict schema validation, security sandboxing against path traversal and symlink escapes, ID collision protection against shadowing built-ins, secret-safe diagnostic reporting, dynamic reload, and provenance integration in `DiagnosticWindow`.
+  - Full automated test suite: 316 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
 - **What does not exist yet:** Wake-word detection (explicitly deferred), multi-monitor support, and cloud sync.
 
 ---

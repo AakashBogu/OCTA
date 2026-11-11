@@ -21,6 +21,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Self
 
 from PySide6.QtCore import QEventLoop, QObject, QThread, QTimer, Signal, Slot
@@ -48,11 +49,15 @@ from octa.intelligence.verifier import (
     ProgressVerifier,
     build_verification_prompt,
 )
-from octa.tutorials.catalog import BUILTIN_TUTORIALS
+from octa.tutorials.catalog import BUILTIN_TUTORIALS, TutorialCatalog
 from octa.tutorials.feedback import (
     FeedbackCollector,
     TutorialFeedback,
     TutorialSessionMetrics,
+)
+from octa.tutorials.plugins import (
+    LoadedTutorialPlugin,
+    PluginDiscoveryResult,
 )
 from octa.voice.controller import VoiceInteractionController, build_default_companion_task
 
@@ -128,6 +133,7 @@ class TutorialEngine(QObject):
     error_occurred = Signal(str)  # message
     feedback_recorded = Signal(object)  # TutorialFeedback
     session_metrics_updated = Signal(object)  # TutorialSessionMetrics
+    tutorials_catalog_reloaded = Signal()  # Emitted when external plugins or tutorials are reloaded
 
     def __init__(
         self,
@@ -147,7 +153,15 @@ class TutorialEngine(QObject):
         super().__init__(parent)
         self._config = config if config is not None else AppConfig()
 
-        catalog = tuple(tutorials) if tutorials is not None else BUILTIN_TUTORIALS
+        if tutorials is not None:
+            self._catalog_manager = TutorialCatalog(builtin_tutorials=tutorials, plugins_dir=None)
+        else:
+            self._catalog_manager = TutorialCatalog(
+                builtin_tutorials=BUILTIN_TUTORIALS,
+                plugins_dir=self._config.tutorial_plugin_dir,
+            )
+
+        catalog = self._catalog_manager.get_all_tutorials()
         if not catalog:
             raise TaskValidationError("TutorialEngine requires at least one TaskDefinition.")
         for item in catalog:
@@ -374,11 +388,53 @@ class TutorialEngine(QObject):
         """Multimodal progress verifier."""
         return self._verifier
 
+    @property
+    def catalog_manager(self) -> TutorialCatalog:
+        """Underlying tutorial catalog manager."""
+        return self._catalog_manager
+
+    @property
+    def loaded_plugins(self) -> tuple[LoadedTutorialPlugin, ...]:
+        """Discovered external tutorial plugins."""
+        return self._catalog_manager.loaded_plugins
+
+    @property
+    def plugin_discovery_result(self) -> PluginDiscoveryResult:
+        """Full plugin discovery result with diagnostics."""
+        return self._catalog_manager.discovery_result
+
+    def is_plugin_tutorial(self, task_id: str) -> bool:
+        """Return True if task_id belongs to a loaded external plugin."""
+        return self._catalog_manager.is_plugin_tutorial(task_id)
+
+    def get_tutorial_provenance(self, task_id: str) -> str | None:
+        """Return plugin name if task_id is from an external plugin, otherwise None."""
+        return self._catalog_manager.get_tutorial_provenance(task_id)
+
+    def reload_plugins(self, plugins_dir: Path | str | None = None) -> PluginDiscoveryResult:
+        """Reload external tutorial plugins from disk and update available tutorials."""
+        result = self._catalog_manager.reload_plugins(plugins_dir)
+        self._tutorials = self._catalog_manager.get_all_tutorials()
+
+        # If active task is no longer present, reset to first tutorial
+        if not any(t.task_id == self._active_task.task_id for t in self._tutorials):
+            self.select_tutorial(self._tutorials[0].task_id)
+
+        self.activity_logged.emit(
+            f"Tutorial plugins reloaded: {len(result.loaded_plugins)} loaded, "
+            f"{len(result.tutorials)} external tutorials, {len(result.diagnostics)} diagnostics.",
+            "INFO",
+        )
+        self.tutorials_catalog_reloaded.emit()
+        return result
+
     def get_tutorial_status_summary(self) -> str:
         """Return a concise human-readable tutorial progress summary for the UI."""
         step = self.current_step
+        provenance = self.get_tutorial_provenance(self._active_task.task_id)
+        prov_tag = f" [Plugin: {provenance}]" if provenance else ""
         return (
-            f"Tutorial: {self._active_task.title} ({self._active_task.application}) — "
+            f"Tutorial: {self._active_task.title} ({self._active_task.application}){prov_tag} — "
             f"Step {step.order}/{self.total_steps}: {step.title} [{self._state.value}]"
         )
 

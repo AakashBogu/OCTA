@@ -166,6 +166,7 @@ class AppConfig:
     voice_allow_local_http: bool = DEFAULT_VOICE_ALLOW_LOCAL_HTTP
     voice_save_audio: bool = False
     voice_max_recording_seconds: float = DEFAULT_VOICE_MAX_RECORDING_SECONDS
+    tutorial_plugin_dir: Path | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration values and normalize types."""
@@ -333,6 +334,9 @@ class AppConfig:
 
         if self.godot_executable is not None and not isinstance(self.godot_executable, Path):
             object.__setattr__(self, "godot_executable", Path(self.godot_executable))
+
+        if self.tutorial_plugin_dir is not None and not isinstance(self.tutorial_plugin_dir, Path):
+            object.__setattr__(self, "tutorial_plugin_dir", Path(self.tutorial_plugin_dir))
 
     @classmethod
     def load(
@@ -556,6 +560,15 @@ class AppConfig:
                     ),
                     "voice_max_recording_seconds",
                     strictly_positive=True,
+                )
+            ),
+            "tutorial_plugin_dir": (
+                Path(overrides["tutorial_plugin_dir"])
+                if "tutorial_plugin_dir" in overrides
+                else (
+                    Path(get_val("OCTA_TUTORIAL_PLUGIN_DIR"))
+                    if get_val("OCTA_TUTORIAL_PLUGIN_DIR")
+                    else app_dir / "plugins" / "tutorials"
                 )
             ),
         }

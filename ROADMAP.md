@@ -156,7 +156,7 @@
 
 ---
 
-## Phase 7 — Advanced Character *(in progress)*
+## Phase 7 — Advanced Character *(complete)*
 
 ### Phase 7.0 — Enhanced Godot Character *(complete)*
 
@@ -167,9 +167,25 @@
 
 ---
 
+## Phase 8 — Extensibility & Ecosystem *(in progress)*
+
+### Phase 8.1 — External Tutorial Plugin System *(complete)*
+
+- [x] Local-only plugin loader for external tutorial packs with consistent `plugin.json` manifests (`src/octa/tutorials/plugins.py`, `src/octa/tutorials/catalog.py`)
+- [x] Strict security boundary: untrusted data handling, zero code execution, rejection of absolute paths, path traversal (`..`), and symlinks resolving outside the plugin directory
+- [x] Read-only plugin file operations preventing writes to external tutorial files
+- [x] ID collision prevention strictly protecting built-in tutorials (`BUILTIN_TASK_IDS`) and earlier-loaded tutorials from being shadowed
+- [x] Secret-safe diagnostic reporting (`PluginLoadDiagnostic`) without crashing application startup or companion monitor
+- [x] Provenance tracking and display formatting (`[Plugin: <name>]`) in `TutorialCatalog`, `TutorialEngine`, and `DiagnosticWindow`
+- [x] Dynamic plugin reloading via `DesktopController.reload_tutorial_plugins()` and `TutorialEngine.reload_plugins()`
+- [x] Configurable plugin search directory (`tutorial_plugin_dir` in `AppConfig` and `OCTA_TUTORIAL_PLUGIN_DIR` environment variable)
+- [x] Comprehensive unit and integration test suite (`tests/unit/test_tutorial_plugins.py`) covering valid loading, malformed manifests, path escapes, ID collisions, engine execution, and dynamic UI updates
+
+---
+
 ## Future Ideas *(not scheduled)*
 
-- Plugin system for community-contributed tutorials
+- Plugin distribution tool & package manager (signed archive bundles for external tutorials)
 - Multi-monitor support
 - Accessibility features (high contrast, screen reader compatibility)
 - Localization / multi-language support

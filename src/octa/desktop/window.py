@@ -231,11 +231,7 @@ class DiagnosticWindow(QWidget):
         selector_label = QLabel("Tutorial:", self)
         selector_label.setFont(label_font)
         self._combo_tutorial = QComboBox(self)
-        for task_def in self._controller.tutorial_engine.available_tutorials:
-            self._combo_tutorial.addItem(
-                f"{task_def.title} ({task_def.application})",
-                userData=task_def.task_id,
-            )
+        self._populate_tutorial_combo()
         self._combo_tutorial.currentIndexChanged.connect(self._on_tutorial_combo_changed)
         self._btn_reset_tutorial = QPushButton("Reset Tutorial", self)
         self._btn_reset_tutorial.clicked.connect(self._on_reset_tutorial_clicked)
@@ -329,6 +325,7 @@ class DiagnosticWindow(QWidget):
         self._controller.tutorial_state_changed.connect(self._on_tutorial_state_changed)
         self._controller.tutorial_step_changed.connect(self._on_tutorial_step_changed)
         self._controller.verification_completed.connect(self._on_verification_completed)
+        self._controller.tutorials_catalog_reloaded.connect(self._populate_tutorial_combo)
 
     # ──────────────────────────────────────────
     # UI Update Slots
@@ -500,6 +497,28 @@ class DiagnosticWindow(QWidget):
     @Slot(object)
     def _on_verification_completed(self, _result: object) -> None:
         self._update_tutorial_display()
+
+    @Slot()
+    def _populate_tutorial_combo(self) -> None:
+        """Populate or refresh the tutorial combo box items, indicating plugin provenance."""
+        current_data = (
+            self._combo_tutorial.currentData() if self._combo_tutorial.count() > 0 else None
+        )
+        self._combo_tutorial.blockSignals(True)
+        self._combo_tutorial.clear()
+        engine = self._controller.tutorial_engine
+        for task_def in engine.available_tutorials:
+            provenance = engine.get_tutorial_provenance(task_def.task_id)
+            prov_prefix = f"[Plugin: {provenance}] " if provenance else ""
+            self._combo_tutorial.addItem(
+                f"{prov_prefix}{task_def.title} ({task_def.application})",
+                userData=task_def.task_id,
+            )
+        if current_data is not None:
+            idx = self._combo_tutorial.findData(current_data)
+            if idx >= 0:
+                self._combo_tutorial.setCurrentIndex(idx)
+        self._combo_tutorial.blockSignals(False)
 
     @Slot(int)
     def _on_tutorial_combo_changed(self, index: int) -> None:

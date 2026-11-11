@@ -9,6 +9,7 @@ is unavailable, and push-to-talk voice interaction.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from octa.intelligence.capture import CaptureRegion
@@ -19,6 +20,11 @@ from octa.intelligence.tasks import (
     OverlayHint,
     TaskDefinition,
     TaskStep,
+)
+from octa.tutorials.plugins import (
+    LoadedTutorialPlugin,
+    PluginDiscoveryResult,
+    discover_tutorial_plugins,
 )
 
 
@@ -246,10 +252,107 @@ BUILTIN_TUTORIALS: tuple[TaskDefinition, ...] = (
     build_explorer_new_folder_tutorial(),
 )
 
+BUILTIN_TASK_IDS: frozenset[str] = frozenset(t.task_id for t in BUILTIN_TUTORIALS)
+
 
 def get_builtin_tutorials() -> tuple[TaskDefinition, ...]:
     """Return all built-in validated sample tutorials."""
     return BUILTIN_TUTORIALS
+
+
+class TutorialCatalog:
+    """Manages built-in tutorials and discovered external tutorial plugins (Phase 8.1)."""
+
+    def __init__(
+        self,
+        builtin_tutorials: Sequence[TaskDefinition] | None = None,
+        plugins_dir: Path | str | None = None,
+    ) -> None:
+        self._builtin_tutorials: tuple[TaskDefinition, ...] = (
+            tuple(builtin_tutorials) if builtin_tutorials is not None else BUILTIN_TUTORIALS
+        )
+        self._builtin_ids: frozenset[str] = frozenset(t.task_id for t in self._builtin_tutorials)
+        self._plugins_dir: Path | None = Path(plugins_dir) if plugins_dir is not None else None
+        self._plugin_discovery: PluginDiscoveryResult = PluginDiscoveryResult(
+            loaded_plugins=(), tutorials=(), diagnostics=()
+        )
+        self._plugin_provenance: dict[str, LoadedTutorialPlugin] = {}
+
+        if self._plugins_dir is not None:
+            self.reload_plugins(self._plugins_dir)
+
+    @property
+    def builtin_tutorials(self) -> tuple[TaskDefinition, ...]:
+        """Tuple of immutable built-in sample tutorials."""
+        return self._builtin_tutorials
+
+    @property
+    def plugins_dir(self) -> Path | None:
+        """Configured directory path for external tutorial plugins."""
+        return self._plugins_dir
+
+    @property
+    def loaded_plugins(self) -> tuple[LoadedTutorialPlugin, ...]:
+        """Tuple of currently loaded tutorial plugins."""
+        return self._plugin_discovery.loaded_plugins
+
+    @property
+    def discovery_result(self) -> PluginDiscoveryResult:
+        """Complete discovery result including loaded plugins, tutorials, and diagnostics."""
+        return self._plugin_discovery
+
+    def reload_plugins(self, plugins_dir: Path | str | None = None) -> PluginDiscoveryResult:
+        """Scan or re-scan the plugins directory, refreshing discovered plugins."""
+        if plugins_dir is not None:
+            self._plugins_dir = Path(plugins_dir)
+
+        result = discover_tutorial_plugins(
+            self._plugins_dir,
+            reserved_task_ids=self._builtin_ids,
+        )
+        self._plugin_discovery = result
+        self._plugin_provenance.clear()
+
+        for plugin in result.loaded_plugins:
+            for tut in plugin.tutorials:
+                self._plugin_provenance[tut.task_id] = plugin
+
+        return result
+
+    def get_all_tutorials(self) -> tuple[TaskDefinition, ...]:
+        """Return combined tuple of built-in and discovered plugin tutorials."""
+        return self._builtin_tutorials + self._plugin_discovery.tutorials
+
+    def get_tutorial_by_id(self, task_id: str) -> TaskDefinition:
+        """Return a TaskDefinition by task_id, or raise TaskValidationError."""
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise TaskValidationError("Tutorial task_id must be a non-empty string.")
+        cleaned = task_id.strip()
+        for tutorial in self.get_all_tutorials():
+            if tutorial.task_id == cleaned:
+                return tutorial
+        available = ", ".join(t.task_id for t in self.get_all_tutorials())
+        raise TaskValidationError(
+            f"Unknown tutorial task_id '{cleaned}'. Available tutorials: {available}."
+        )
+
+    def is_plugin_tutorial(self, task_id: str) -> bool:
+        """Return True if task_id belongs to a loaded external plugin."""
+        return task_id.strip() in self._plugin_provenance
+
+    def get_tutorial_provenance(self, task_id: str) -> str | None:
+        """Return the plugin name or identifier if task_id is from a plugin, otherwise None."""
+        plugin = self._plugin_provenance.get(task_id.strip())
+        if plugin is not None:
+            return plugin.manifest.name or plugin.manifest.plugin_id
+        return None
+
+    def format_display_title(self, task_def: TaskDefinition) -> str:
+        """Format a tutorial's display title for the UI, clearly showing [Plugin] provenance."""
+        provenance = self.get_tutorial_provenance(task_def.task_id)
+        if provenance:
+            return f"[Plugin: {provenance}] {task_def.title} ({task_def.application})"
+        return f"{task_def.title} ({task_def.application})"
 
 
 def get_tutorial_by_id(task_id: str) -> TaskDefinition:

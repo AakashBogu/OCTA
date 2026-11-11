@@ -51,6 +51,7 @@ class DesktopController(QObject):
     )  # step_num, total_steps, step_id, instruction
     verification_completed = Signal(object)  # ProgressResult
     feedback_recorded = Signal(object)  # TutorialFeedback
+    tutorials_catalog_reloaded = Signal()  # Emitted when tutorial plugins or catalog are reloaded
 
     def __init__(
         self,
@@ -148,6 +149,9 @@ class DesktopController(QObject):
         self._tutorial_engine.activity_logged.connect(self._log)
         self._tutorial_engine.error_occurred.connect(self.error_occurred.emit)
         self._tutorial_engine.feedback_recorded.connect(self.feedback_recorded.emit)
+        self._tutorial_engine.tutorials_catalog_reloaded.connect(
+            self.tutorials_catalog_reloaded.emit
+        )
 
     # ──────────────────────────────────────────
     # Properties
@@ -444,6 +448,10 @@ class DesktopController(QObject):
             comment=comment,
             step_id=step_id,
         )
+
+    def reload_tutorial_plugins(self, plugins_dir: Any = None) -> Any:
+        """Reload external tutorial plugins from disk and refresh catalog."""
+        return self._tutorial_engine.reload_plugins(plugins_dir)
 
     # ──────────────────────────────────────────
     # Internal Lifecycle Sequencing & Helpers

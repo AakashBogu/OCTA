@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Phase 8.1 — External Tutorial Plugin System (2026-11-12)**
+  - `src/octa/tutorials/plugins.py` — Created local plugin subsystem: `TutorialPluginManifest`, `LoadedTutorialPlugin`, `PluginLoadDiagnostic`, `PluginDiscoveryResult`, `load_tutorial_plugin()`, and `discover_tutorial_plugins()`. Enforces strict JSON schema validation, no code execution, read-only file access, and rejection of absolute paths, path traversal (`..`), and symlinks resolving outside the plugin directory.
+  - `src/octa/tutorials/catalog.py` — Added `TutorialCatalog` combining built-in sample tutorials with discovered external plugins, provenance tracking (`get_tutorial_provenance()`, `is_plugin_tutorial()`), display title formatting (`[Plugin: <name>]`), and reserved ID protection (`BUILTIN_TASK_IDS`).
+  - `src/octa/core/config.py`, `.env.example` — Added `tutorial_plugin_dir` configuration setting (`OCTA_TUTORIAL_PLUGIN_DIR`), defaulting to `app_dir / "plugins" / "tutorials"`.
+  - `src/octa/tutorials/engine.py` — Integrated `TutorialCatalog` with `TutorialEngine`, adding `tutorials_catalog_reloaded` signal, dynamic `reload_plugins()`, provenance lookup, and automatic fallback if the active tutorial is removed during reload.
+  - `src/octa/desktop/controller.py`, `src/octa/desktop/window.py` — Added `reload_tutorial_plugins()` to `DesktopController`, connected `tutorials_catalog_reloaded` signal, and displayed plugin provenance (`[Plugin: <name>]`) in `DiagnosticWindow._combo_tutorial`.
+  - `tests/unit/test_tutorial_plugins.py` — 29 unit and integration tests covering manifest parsing, strict schema validation, absolute path / path traversal / symlink rejection, multi-file plugins, collision prevention, secret-safe diagnostics, catalog provenance, and full engine & UI dynamic reload.
 - **Phase 7.0 — Enhanced Godot Character (2026-11-11)**
   - `godot/project.godot` — Configured desktop companion window settings: transparent background (`rendering/viewport/transparent_background=true`), borderless mode, per-pixel transparency allowed (`window/per_pixel_transparency/allowed=true`), compact window size (360x420 viewport), always-on-top, and non-resizable.
   - `godot/scripts/main_scene.gd` — Initialized transparent desktop window (`DisplayServer.WINDOW_FLAG_TRANSPARENT`, `WINDOW_FLAG_BORDERLESS`, `WINDOW_FLAG_ALWAYS_ON_TOP`), position offset to bottom-right usable desktop area, left-click window dragging across screen, clear transparent environment (`Color(0, 0, 0, 0)`), three-point lighting (key, fill, rim), and state hotkeys (1-4 protocol states, 5 talking, 6 pointing, 7 celebrating, Space/Enter cycling).

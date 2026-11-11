@@ -705,3 +705,51 @@ Implemented and verified all Phase 7.0 roadmap items for the Godot desktop compa
 
 ### Next Step
 - Complete user review and prepare for next milestone or release.
+
+---
+
+## Task: Phase 8.1 — External Tutorial Plugin System
+
+**Date:** 2026-11-12
+**Phase:** 8.1
+
+### Summary
+Implemented and verified Phase 8.1 — External Tutorial Plugin System for OCTA:
+1. Created the local-only external tutorial plugin system (`src/octa/tutorials/plugins.py`) with standard `plugin.json` manifests (`TutorialPluginManifest`), directory discovery (`discover_tutorial_plugins`), and single-plugin loader (`load_tutorial_plugin`).
+2. Enforced strict untrusted data security boundaries: pure declarative JSON only (no Python/executable code), read-only file reading, strict manifest schema validation, and complete rejection of absolute paths, path traversal (`..`), and symlinks resolving outside the plugin root directory (`is_relative_to`).
+3. Enforced core ID collision prevention against built-in tutorials (`BUILTIN_TASK_IDS`) and between plugins to prevent malicious or accidental shadowing of system tutorials (`ID_COLLISION` diagnostic).
+4. Provided secret-safe, non-crashing diagnostic reporting (`PluginLoadDiagnostic`) allowing the application, engine, and UI to start cleanly even when broken plugins are present.
+5. Integrated plugin discovery into `TutorialCatalog` (`src/octa/tutorials/catalog.py`), `TutorialEngine` (`src/octa/tutorials/engine.py`), `DesktopController` (`src/octa/desktop/controller.py`), and `DiagnosticWindow` (`src/octa/desktop/window.py`), displaying plugin provenance (`[Plugin: <name>]`) and supporting dynamic runtime reloads via `tutorials_catalog_reloaded` signal.
+6. Added `tutorial_plugin_dir` (`OCTA_TUTORIAL_PLUGIN_DIR`) to `AppConfig` and `.env.example`.
+7. Created 29 automated unit and integration tests (`tests/unit/test_tutorial_plugins.py`) covering manifest validation, path escapes, symlink traversal, collisions, engine execution, and dynamic UI combo updates.
+
+### Files Changed
+- `src/octa/tutorials/plugins.py` — Created. Plugin manifests, validation, security sandboxing, loader, and discovery.
+- `src/octa/tutorials/catalog.py` — Added `TutorialCatalog`, `BUILTIN_TASK_IDS`, provenance tracking, and title display formatting.
+- `src/octa/tutorials/engine.py` — Integrated `TutorialCatalog`, dynamic `reload_plugins()`, and `tutorials_catalog_reloaded` signal.
+- `src/octa/tutorials/__init__.py` — Public exports for plugin models and catalog classes.
+- `src/octa/core/config.py` — Added `tutorial_plugin_dir` configuration.
+- `.env.example` — Added `OCTA_TUTORIAL_PLUGIN_DIR` template documentation.
+- `src/octa/desktop/controller.py` — Added `reload_tutorial_plugins()`.
+- `src/octa/desktop/window.py` — Added provenance display in tutorial combo and dynamic catalog reload signal handler.
+- `tests/unit/test_tutorial_plugins.py` — Created. 29 unit and integration tests.
+- `ROADMAP.md` — Marked Phase 7.0 and Phase 8.1 complete.
+- `README.md` — Updated status, What Works Now, roadmap table, and test counts.
+- `CHANGELOG.md` — Added Phase 8.1 entry under `[Unreleased]`.
+- `docs/PROGRESS.md` — Appended this progress entry.
+- `docs/architecture.md` — Documented plugin system architecture, security sandbox, and manifest specification.
+
+### Validation
+- **Plugin Test Suite**: Ran `pytest tests/unit/test_tutorial_plugins.py -v`: 28 passed, 1 skipped (unprivileged symlinks on Windows).
+- **Godot Enhanced Character Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_enhanced_character.gd`: 66 passed, 0 failed.
+- **Godot Protocol Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_ws_protocol.gd`: 13 passed, 0 failed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 316 passed, 1 skipped in 14.86s.
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 72 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 8.1 files when approved.

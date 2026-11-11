@@ -1,6 +1,6 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), and Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing) are implemented. Full tutorial loop orchestration (Phase 6.0) remains **proposed**.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), and Phase 8.1 (External tutorial plugin system) are implemented and verified.
 >
 > **Last updated:** 2026-11-09
 
@@ -759,3 +759,95 @@ dist/OCTA/
    - The build process audits the generated bundle against forbidden files (`.env`, `.env.*`, `*.key`, `*.pem`, `tutorial_feedback.json`, `tutorial_session_metrics.json`, `*.log`).
    - Development tools and test frameworks (`pytest`, `ruff`) are explicitly excluded.
    - User data and logs are strictly stored in `%LOCALAPPDATA%\OCTA`, keeping the application bundle read-only and suitable for installation in protected directories.
+
+
+---
+
+## Phase 8 — Extensibility & External Tutorial Plugin Architecture
+
+### Overview & Security Posture
+
+OCTA Phase 8.1 introduces a local-only plugin architecture allowing community or local third-party tutorial packs to extend OCTA's tutorial catalog without modifying the core codebase or requiring network connectivity.
+
+Because external tutorial files may come from untrusted sources, the plugin loader implements a **strict zero-trust sandbox**:
+1. **Zero Code Execution**: Plugins are strictly declarative JSON. No Python scripts, native DLLs, shell scripts, or dynamic code execution mechanisms (`eval`, `exec`, `__import__`) are supported or permitted.
+2. **Path Traversal & Escape Prevention**: Manifests and tutorial references are validated against malicious paths. Absolute file paths (e.g. `C:\...`, `/...`) and directory traversal sequences (`..`) are strictly rejected. Furthermore, canonical resolved paths are verified using Python's `Path.is_relative_to(canonical_plugin_dir)` to guarantee no symlink escapes outside the plugin directory root.
+3. **Read-Only Operations**: All external plugin files are opened strictly in read-only mode (`open(..., "r", encoding="utf-8")`). The application never writes to, modifies, or deletes files in the plugin directory.
+4. **Reserved Built-in ID Protection**: Core tutorial IDs (`BUILTIN_TASK_IDS`: `octa-welcome-task`, `windows-notepad-save`, `windows-explorer-new-folder`) are strictly reserved. External plugins attempting to use or shadow these task IDs are rejected with `ID_COLLISION` diagnostics, ensuring built-in tutorials cannot be hijacked.
+5. **Startup Resilience**: Corrupted, malformed, or hostile plugins produce structured `PluginLoadDiagnostic` entries instead of raising uncaught exceptions, preventing broken plugins from crashing the desktop controller, tutorial engine, or application startup.
+
+### Plugin Manifest Specification (`plugin.json`)
+
+Each tutorial plugin resides in a distinct subdirectory within the configured plugin root (`tutorial_plugin_dir`, defaulting to `%LOCALAPPDATA%\OCTA\plugins\tutorials`, overrideable via `OCTA_TUTORIAL_PLUGIN_DIR`).
+
+A plugin directory must contain a `plugin.json` manifest:
+
+```json
+{
+  "schema_version": "1.0",
+  "id": "paint-drawing-pack",
+  "name": "MS Paint Tutorials",
+  "version": "1.0.0",
+  "author": "Community Contributor",
+  "description": "Step-by-step interactive drawing tutorials for Microsoft Paint.",
+  "tutorial_files": [
+    "tutorials/draw_shape.json",
+    "tutorials/color_picker.json"
+  ]
+}
+```
+
+#### Manifest Fields:
+- `schema_version` *(string, required)*: Version of the plugin manifest format (must be `"1.0"`).
+- `id` *(string, required)*: Unique slug identifier for the plugin (alphanumeric, hyphens, underscores).
+- `name` *(string, required)*: Human-readable display name of the plugin pack.
+- `version` *(string, required)*: SemVer or numeric version string.
+- `author` *(string, optional)*: Author or organization name.
+- `description` *(string, optional)*: Short summary of the plugin's content.
+- `tutorial_file` *(string, optional)*: Relative path to a single tutorial JSON definition.
+- `tutorial_files` *(list of strings, optional)*: Relative paths to one or more tutorial JSON definitions. Either `tutorial_file` or `tutorial_files` must be provided.
+
+### Discovery & Catalog Architecture
+
+```
+┌────────────────────────────────────────────────────────┐
+│                   AppConfig                            │
+│           (tutorial_plugin_dir)                        │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│             discover_tutorial_plugins()                │
+│    Scans subdirectories for valid plugin.json files    │
+│    Validates manifests, paths, and prevents escapes    │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│                  TutorialCatalog                       │
+│    Combines BUILTIN_TUTORIALS + Discovered Tutorials   │
+│    Enforces ID uniqueness & tracks plugin provenance   │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│                  TutorialEngine                        │
+│    Executes tutorials, manages AI verification,        │
+│    records metrics, and emits catalog reload signals   │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│             DiagnosticWindow (PySide6 UI)              │
+│    Displays [Plugin: <name>] in dropdown selector      │
+│    Dynamically refreshes when plugins reload           │
+└────────────────────────────────────────────────────────┘
+```
+
+### UI Provenance & Dynamic Reloading
+
+External plugin tutorials are displayed with their source plugin name in the tutorial selector dropdown:
+- Built-in tutorial: `Create and Save a Note in Windows Notepad (Windows Notepad)`
+- External plugin tutorial: `[Plugin: MS Paint Tutorials] Draw a Basic Shape (MS Paint)`
+
+Calling `DesktopController.reload_tutorial_plugins()` rescans the plugin directory, rebuilds the catalog, and updates the UI dropdown dynamically via the `tutorials_catalog_reloaded` signal, falling back cleanly to the default tutorial if the currently selected tutorial was removed.
