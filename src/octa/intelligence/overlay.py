@@ -353,6 +353,9 @@ class GuidanceOverlayWidget(QWidget):
             a.validate_against_screen(self._screen_bounds)
             validated_arrows.append(a)
 
+        if self._highlights == validated_highlights and self._arrows == validated_arrows:
+            return
+
         self._highlights = validated_highlights
         self._arrows = validated_arrows
         self.update()
@@ -367,12 +370,16 @@ class GuidanceOverlayWidget(QWidget):
                 highlights.append(spec)
             else:
                 arrows.append(spec)
+        if self._highlights == highlights and self._arrows == arrows:
+            return
         self._highlights = highlights
         self._arrows = arrows
         self.update()
 
     def clear_annotations(self) -> None:
         """Remove all highlights and arrows from the overlay."""
+        if not self._highlights and not self._arrows:
+            return
         self._highlights.clear()
         self._arrows.clear()
         self.update()

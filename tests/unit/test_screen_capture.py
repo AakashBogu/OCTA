@@ -247,3 +247,86 @@ def test_captured_image_and_capturer_edge_validation() -> None:
 
     with pytest.raises(CaptureCancelledError, match="No interactive region selector"):
         capturer_no_dir.select_and_capture_region(user_initiated=True)
+
+
+def test_captured_image_property_caching() -> None:
+    """CapturedImage lazily computes and caches sha256_digest, to_base64, and to_data_url."""
+    region = CaptureRegion(x=0, y=0, width=20, height=20)
+    png_bytes = _make_sample_png_bytes(20, 20)
+    img = CapturedImage(png_bytes=png_bytes, width=20, height=20, region=region)
+
+    # Initial state: cache attributes are unpopulated
+    assert getattr(img, "_sha256_digest", None) is None
+    assert getattr(img, "_base64", None) is None
+    assert getattr(img, "_data_url", None) is None
+
+    # First access populates cache
+    digest1 = img.sha256_digest
+    assert len(digest1) == 64
+    assert getattr(img, "_sha256_digest", None) == digest1
+
+    # Second access returns cached object directly
+    digest2 = img.sha256_digest
+    assert digest1 is digest2
+
+    # to_base64 populates and reuses cache
+    b64_1 = img.to_base64()
+    assert getattr(img, "_base64", None) == b64_1
+    b64_2 = img.to_base64()
+    assert b64_1 is b64_2
+
+    # to_data_url populates and reuses cache
+    url1 = img.to_data_url()
+    assert getattr(img, "_data_url", None) == url1
+    url2 = img.to_data_url()
+    assert url1 is url2
+
+
+def test_grab_screen_with_qt_max_dimension_scaling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """grab_screen_with_qt downscales oversized captures preserving aspect ratio and bounds."""
+    # Simulate a 4K display: 3840x2160
+    img = QImage(3840, 2160, QImage.Format.Format_ARGB32)
+    img.fill(QColor(100, 150, 200))
+    pixmap = QPixmap.fromImage(img)
+
+    fake_screen = MagicMock()
+    fake_screen.geometry.return_value = QRect(0, 0, 3840, 2160)
+    fake_screen.grabWindow.return_value = pixmap
+    monkeypatch.setattr(QGuiApplication, "primaryScreen", staticmethod(lambda: fake_screen))
+
+    # Default max_dimension=1920 scales 3840x2160 down to 1920x1080
+    png_bytes, w, h, actual_region = grab_screen_with_qt()
+    assert len(png_bytes) > 0
+    assert (w, h) == (1920, 1080)
+    # The actual region metadata preserves screen coordinates
+    assert actual_region == CaptureRegion(x=0, y=0, width=3840, height=2160)
+
+    # When max_dimension=None, original resolution is preserved
+    png_bytes_unconstrained, w_unc, h_unc, _ = grab_screen_with_qt(max_dimension=None)
+    assert (w_unc, h_unc) == (3840, 2160)
+
+
+def test_screen_capturer_delegates_max_dimension() -> None:
+    """ScreenCapturer forwards max_dimension to grabbers that support it and handles legacy."""
+    region = CaptureRegion(x=0, y=0, width=50, height=50)
+    png_bytes = _make_sample_png_bytes(50, 50)
+
+    # Grabber with max_dimension keyword parameter
+    mock_kw_grabber = MagicMock(return_value=(png_bytes, 50, 50, region))
+    capturer_kw = ScreenCapturer(grabber=mock_kw_grabber, max_dimension=1600)
+    assert capturer_kw.max_dimension == 1600
+    capturer_kw.capture_full_screen(user_initiated=True)
+    mock_kw_grabber.assert_called_once_with(None, max_dimension=1600)
+
+    # Legacy grabber accepting only single positional argument
+    legacy_called = []
+
+    def legacy_grabber(reg: CaptureRegion | None) -> tuple[bytes, int, int, CaptureRegion]:
+        legacy_called.append(reg)
+        return png_bytes, 50, 50, region
+
+    capturer_legacy = ScreenCapturer(grabber=legacy_grabber, max_dimension=1600)
+    capturer_legacy.capture_full_screen(user_initiated=True)
+    assert legacy_called == [None]

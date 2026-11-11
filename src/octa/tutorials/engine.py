@@ -1229,6 +1229,12 @@ class TutorialEngine(QObject):
 
     def _sync_overlay(self, cues: Sequence[OverlayHint]) -> None:
         if not self._overlay_enabled or not cues:
+            if (
+                not self._overlay.isVisible()
+                and not self._overlay.highlights
+                and not self._overlay.arrows
+            ):
+                return
             self._overlay.clear_annotations()
             self._overlay.hide()
             self.overlay_updated.emit(0, 0)

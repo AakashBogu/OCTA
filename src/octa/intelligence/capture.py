@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import inspect
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -15,7 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self
 
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, Qt
 from PySide6.QtGui import QGuiApplication, QImage, QPixmap
 
 from octa.intelligence.exceptions import (
@@ -172,15 +173,27 @@ class CapturedImage:
     @property
     def sha256_digest(self) -> str:
         """SHA-256 hex digest of the PNG payload for integrity and consent binding."""
-        return hashlib.sha256(self.png_bytes).hexdigest()
+        digest = getattr(self, "_sha256_digest", None)
+        if digest is None:
+            digest = hashlib.sha256(self.png_bytes).hexdigest()
+            object.__setattr__(self, "_sha256_digest", digest)
+        return digest
 
     def to_base64(self) -> str:
         """Return base64-encoded ASCII string of the PNG bytes."""
-        return base64.b64encode(self.png_bytes).decode("ascii")
+        b64 = getattr(self, "_base64", None)
+        if b64 is None:
+            b64 = base64.b64encode(self.png_bytes).decode("ascii")
+            object.__setattr__(self, "_base64", b64)
+        return b64
 
     def to_data_url(self) -> str:
         """Return a data URL suitable for multimodal OpenAI-compatible vision payloads."""
-        return f"data:image/png;base64,{self.to_base64()}"
+        data_url = getattr(self, "_data_url", None)
+        if data_url is None:
+            data_url = f"data:image/png;base64,{self.to_base64()}"
+            object.__setattr__(self, "_data_url", data_url)
+        return data_url
 
     def summary(self) -> dict[str, Any]:
         """Return safe metadata describing the capture without any pixel/byte content."""
@@ -223,8 +236,18 @@ type ScreenGrabCallable = Callable[
 
 def grab_screen_with_qt(
     region: CaptureRegion | None = None,
+    *,
+    max_dimension: int | None = 1920,
 ) -> tuple[bytes, int, int, CaptureRegion]:
-    """Capture the primary Windows screen or a rectangular region in memory using PySide6."""
+    """Capture the primary Windows screen or a rectangular region in memory using PySide6.
+
+    Args:
+        region: Optional validated bounding region. None captures full screen.
+        max_dimension: Optional maximum width/height dimension in pixels for PNG encoding.
+            When an image exceeds this bound (e.g. 4K/high-DPI full screen), it is downscaled
+            smoothly to preserve aspect ratio, drastically reducing encoding latency and
+            payload size while keeping actual screen region coordinates exact.
+    """
     screen = QGuiApplication.primaryScreen()
     if screen is None:
         raise ScreenCaptureError(
@@ -258,6 +281,15 @@ def grab_screen_with_qt(
     if pixmap.isNull() or pixmap.width() <= 0 or pixmap.height() <= 0:
         raise ScreenCaptureError("Qt screen grab returned an empty or null pixmap.")
 
+    if max_dimension is not None and max_dimension > 0:
+        if pixmap.width() > max_dimension or pixmap.height() > max_dimension:
+            pixmap = pixmap.scaled(
+                max_dimension,
+                max_dimension,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+
     png_bytes = encode_qimage_to_png_bytes(pixmap)
     return png_bytes, pixmap.width(), pixmap.height(), actual_region
 
@@ -275,11 +307,13 @@ class ScreenCapturer:
         region_selector: Callable[[], CaptureRegion | None] | None = None,
         save_screenshots: bool = False,
         save_dir: Path | None = None,
+        max_dimension: int | None = 1920,
     ) -> None:
         self._grabber: ScreenGrabCallable = grabber if grabber is not None else grab_screen_with_qt
         self._region_selector = region_selector
         self._save_screenshots = bool(save_screenshots)
         self._save_dir = Path(save_dir) if save_dir is not None else None
+        self._max_dimension = max_dimension
 
     @property
     def save_screenshots(self) -> bool:
@@ -290,6 +324,33 @@ class ScreenCapturer:
     def save_dir(self) -> Path | None:
         """Optional directory where screenshots may be saved if explicitly enabled."""
         return self._save_dir
+
+    @property
+    def max_dimension(self) -> int | None:
+        """Maximum dimension for captured images before PNG encoding, or None."""
+        return self._max_dimension
+
+    def _invoke_grabber(
+        self,
+        region: CaptureRegion | None,
+    ) -> tuple[bytes, int, int, CaptureRegion]:
+        """Invoke grabber with max_dimension if supported, otherwise with region alone."""
+        if self._grabber is grab_screen_with_qt:
+            return grab_screen_with_qt(region, max_dimension=self._max_dimension)
+        try:
+            sig = inspect.signature(self._grabber)
+            supports_kw = "max_dimension" in sig.parameters or any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+            )
+        except (ValueError, TypeError):
+            supports_kw = False
+
+        if supports_kw:
+            try:
+                return self._grabber(region, max_dimension=self._max_dimension)  # type: ignore[call-arg]
+            except TypeError:
+                return self._grabber(region)
+        return self._grabber(region)
 
     @staticmethod
     def _require_user_action(user_initiated: bool) -> None:
@@ -323,7 +384,7 @@ class ScreenCapturer:
     ) -> CapturedImage:
         """Capture the full primary screen after verifying explicit user action."""
         self._require_user_action(user_initiated)
-        png_bytes, width, height, actual_region = self._grabber(None)
+        png_bytes, width, height, actual_region = self._invoke_grabber(None)
         saved_path = self._maybe_persist(png_bytes, persist=persist)
 
         image = CapturedImage(
@@ -357,7 +418,7 @@ class ScreenCapturer:
                 f"Expected CaptureRegion instance, got {type(region).__name__}."
             )
 
-        png_bytes, width, height, actual_region = self._grabber(region)
+        png_bytes, width, height, actual_region = self._invoke_grabber(region)
         saved_path = self._maybe_persist(png_bytes, persist=persist)
 
         image = CapturedImage(

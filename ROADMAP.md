@@ -151,7 +151,7 @@
 - [x] Combine all subsystems into a cohesive tutorial flow (`TutorialEngine` in `src/octa/tutorials/engine.py`: tutorial selection, text-based navigation/hints/manual completion, user-initiated capture + single-use consent + AI verification on a background `QThread`, passive overlay sync, voice step sync, companion state requests, cancellation and bounded shutdown; wired into `DesktopController` and `DiagnosticWindow`)
 - [x] Create sample tutorials for common applications (`src/octa/tutorials/catalog.py`: Getting Started with OCTA, Windows Notepad save, Windows File Explorer new folder; JSON tutorial loader)
 - [x] User testing and feedback loop (`FeedbackCollector`, `TutorialFeedback`, `TutorialSessionMetrics`, `TutorialFeedbackDialog`, and session metrics tracking across hints, verifications, completions, and ratings)
-- [ ] Performance optimization
+- [x] Performance optimization
 - [ ] Installer / distribution packaging
 
 ---

@@ -182,3 +182,49 @@ def test_overlay_bounds_update_revalidates_annotations(qtbot: QtBot) -> None:
 
     # Original bounds preserved
     assert overlay.screen_bounds == OverlayBounds(x=0, y=0, width=500, height=400)
+
+
+def test_overlay_repaint_deduplication(qtbot: QtBot, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Duplicate annotations or clearing empty overlay skips redundant repaint calls."""
+    bounds = OverlayBounds(x=0, y=0, width=500, height=400)
+    overlay = GuidanceOverlayWidget(screen_bounds=bounds)
+    qtbot.addWidget(overlay)
+
+    update_count = 0
+    original_update = overlay.update
+
+    def counting_update() -> None:
+        nonlocal update_count
+        update_count += 1
+        original_update()
+
+    monkeypatch.setattr(overlay, "update", counting_update)
+
+    # Initial clearing when already empty does not call update
+    overlay.clear_annotations()
+    assert update_count == 0
+
+    # Setting annotations calls update once
+    h = HighlightSpec(x=20, y=20, width=100, height=50)
+    overlay.set_annotations(highlights=[h])
+    assert update_count == 1
+
+    # Setting the exact same annotations again skips update
+    overlay.set_annotations(highlights=[h])
+    assert update_count == 1
+
+    # Applying the same hint skips update
+    hint = OverlayHint(
+        kind=OverlayElementType.HIGHLIGHT,
+        bounds=CaptureRegion(x=20, y=20, width=100, height=50),
+    )
+    overlay.apply_hints([hint])
+    assert update_count == 1
+
+    # Clearing non-empty overlay calls update
+    overlay.clear_annotations()
+    assert update_count == 2
+
+    # Second clear on empty overlay skips update
+    overlay.clear_annotations()
+    assert update_count == 2

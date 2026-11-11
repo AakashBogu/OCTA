@@ -232,7 +232,7 @@ class FeedbackCollector:
             self._storage_dir.mkdir(parents=True, exist_ok=True)
             path = self._storage_dir / "tutorial_feedback.json"
             data = [f.to_dict() for f in self._feedback_records]
-            path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            path.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
         except OSError as exc:
             logger.warning("Failed to persist tutorial feedback: %s", exc)
 
@@ -243,6 +243,6 @@ class FeedbackCollector:
             self._storage_dir.mkdir(parents=True, exist_ok=True)
             path = self._storage_dir / "tutorial_session_metrics.json"
             data = [s.to_dict() for s in self._session_records]
-            path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            path.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
         except OSError as exc:
             logger.warning("Failed to persist tutorial session metrics: %s", exc)

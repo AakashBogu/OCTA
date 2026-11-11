@@ -568,3 +568,48 @@ Implemented structured user feedback collection and session metrics tracking for
 ### Next Step
 - Phase 6.0 performance optimization (image downscaling/subsampling for ultra-high-res displays before base64 serialization, overlay rendering optimization).
 - Phase 6.0 distribution / installer packaging.
+
+---
+
+## Task: Phase 6.0 — Performance Optimization
+**Date:** 2026-11-11
+**Phase:** 6.0
+
+### Summary
+Benchmarked and resolved concrete bottlenecks in the tutorial engine flow focusing on Qt UI thread responsiveness, screen capture encoding, property access, persistence, and overlay repainting. Downscaled oversized high-DPI/4K captures before PNG encoding, cached immutable `CapturedImage` digests/base64 strings, used compact JSON serialization for local feedback/metrics persistence, and de-duplicated passive overlay repaints.
+
+### Bottlenecks Measured & Optimizations Applied
+1. **Screen Capture Encoding & High-DPI UI Freeze:**
+   - *Measurement:* Full-screen PNG encoding on UI thread took 154 ms at 1080p, 295 ms at 1440p, and 628–718 ms at 4K.
+   - *Fix:* Downscale full-screen captures exceeding `max_dimension=1920` using `Qt.TransformationMode.SmoothTransformation` before in-memory PNG encoding. Total time dropped to 149 ms (68% speedup) and payload size dropped from 234 KB to 91 KB (61% reduction), eliminating user-visible UI freeze before the consent dialog. Region captures remain 1:1 pixel-exact.
+2. **CapturedImage Immutable Property Recalculation:**
+   - *Measurement:* 50 verification pipeline cycles took 137.76 ms un-cached vs 1.18 ms cached (99.1% speedup).
+   - *Fix:* Lazily compute and cache `sha256_digest`, `to_base64()`, and `to_data_url()` on first access.
+3. **Feedback & Metrics Local Persistence:**
+   - *Measurement:* 50 writes of 200 items took 154.58 ms (indented) vs 65.00 ms (compact) (58% speedup).
+   - *Fix:* Use compact JSON serialization (`separators=(',', ':')`) in `FeedbackCollector._maybe_persist_feedback` and `_maybe_persist_metrics`.
+4. **Overlay Repaint De-duplication:**
+   - *Fix:* In `GuidanceOverlayWidget.set_annotations`, `apply_hints`, and `clear_annotations`, skip `self.update()` when annotations are identical or already clear. In `TutorialEngine._sync_overlay`, avoid redundant clear/hide calls when already disabled and empty.
+
+### Files Changed
+- `src/octa/intelligence/capture.py` — High-DPI downscaling (`max_dimension: int | None = 1920`), `ScreenCapturer` delegation, and lazy property caching on `CapturedImage`.
+- `src/octa/tutorials/feedback.py` — Compact JSON persistence for feedback and session metrics.
+- `src/octa/intelligence/overlay.py` — Annotation and repaint de-duplication in `set_annotations`, `apply_hints`, and `clear_annotations`.
+- `src/octa/tutorials/engine.py` — Short-circuit in `_sync_overlay` for disabled/empty overlay states.
+- `tests/unit/test_screen_capture.py` — Added 3 unit tests (`test_captured_image_property_caching`, `test_grab_screen_with_qt_max_dimension_scaling`, `test_screen_capturer_delegates_max_dimension`).
+- `tests/unit/test_overlay.py` — Added unit test `test_overlay_repaint_deduplication`.
+- `ROADMAP.md`, `README.md`, `CHANGELOG.md`, `docs/PROGRESS.md` — Updated milestone status and performance details.
+
+### Validation
+- **Focused Performance Tests:** Ran `pytest tests/unit/test_screen_capture.py tests/unit/test_overlay.py -v`, 20 passed.
+- **Combined Tutorial Engine Tests:** Ran `pytest tests/unit/test_tutorial_feedback.py tests/unit/test_tutorial_engine.py -v`, 16 passed.
+- **Full Python Test Suite:** Ran `pytest tests -q -p no:cacheprovider`, all 283 tests passed.
+- **Ruff Linter:** Ran `ruff check src tests`, all checks passed with 0 errors.
+- **Ruff Formatter:** Ran `ruff format --check src tests`, all 68 files properly formatted.
+- **Git Diff Check:** Ran `git diff --check`, 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Phase 6.0 installer and distribution packaging (final roadmap item of Phase 6.0).
