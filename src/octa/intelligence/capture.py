@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Self
 
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice, Qt
-from PySide6.QtGui import QGuiApplication, QImage, QPixmap
+from PySide6.QtGui import QGuiApplication, QImage, QPixmap, QScreen
 
 from octa.intelligence.exceptions import (
     CaptureCancelledError,
@@ -38,12 +38,17 @@ def _require_int(value: Any, field_name: str) -> int:
 
 @dataclass(frozen=True)
 class CaptureRegion:
-    """Validated rectangular screen region in pixel coordinates."""
+    """Validated rectangular screen region in pixel coordinates.
+
+    When allow_negative is True, x and y may be negative to represent regions in virtual
+    desktop space on monitors positioned left of or above the primary display.
+    """
 
     x: int
     y: int
     width: int
     height: int
+    allow_negative: bool = False
 
     def __post_init__(self) -> None:
         x = _require_int(self.x, "x")
@@ -51,7 +56,7 @@ class CaptureRegion:
         width = _require_int(self.width, "width")
         height = _require_int(self.height, "height")
 
-        if x < 0 or y < 0:
+        if not self.allow_negative and (x < 0 or y < 0):
             raise CaptureRegionError(
                 f"CaptureRegion coordinates must be non-negative, got ({x}, {y})."
             )
@@ -87,14 +92,27 @@ class CaptureRegion:
                 f"screen bounds ({sx}, {sy}, {sw}x{sh})."
             )
 
-    def to_dict(self) -> dict[str, int]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize region to a JSON-compatible dictionary."""
-        return {
+        data: dict[str, Any] = {
             "x": self.x,
             "y": self.y,
             "width": self.width,
             "height": self.height,
         }
+        if self.allow_negative:
+            data["allow_negative"] = True
+        return data
+
+    def to_local(self, screen_x: int, screen_y: int) -> CaptureRegion:
+        """Return a copy of this region translated to screen-local coordinates."""
+        return CaptureRegion(
+            x=self.x - screen_x,
+            y=self.y - screen_y,
+            width=self.width,
+            height=self.height,
+            allow_negative=False,
+        )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -102,20 +120,25 @@ class CaptureRegion:
         if not isinstance(data, dict):
             raise CaptureRegionError("CaptureRegion must be a dictionary.")
 
-        allowed_keys = {"x", "y", "width", "height"}
+        allowed_keys = {"x", "y", "width", "height", "allow_negative"}
         extra = set(data.keys()) - allowed_keys
         if extra:
             raise CaptureRegionError(f"Unexpected fields in CaptureRegion: {sorted(extra)}")
 
-        missing = allowed_keys - set(data.keys())
+        missing = {"x", "y", "width", "height"} - set(data.keys())
         if missing:
             raise CaptureRegionError(f"Missing required fields in CaptureRegion: {sorted(missing)}")
+
+        allow_neg = bool(data.get("allow_negative", False))
+        if data["x"] < 0 or data["y"] < 0:
+            allow_neg = True
 
         return cls(
             x=data["x"],
             y=data["y"],
             width=data["width"],
             height=data["height"],
+            allow_negative=allow_neg,
         )
 
 
@@ -238,17 +261,27 @@ def grab_screen_with_qt(
     region: CaptureRegion | None = None,
     *,
     max_dimension: int | None = 1920,
+    screen_index: int | None = None,
 ) -> tuple[bytes, int, int, CaptureRegion]:
-    """Capture the primary Windows screen or a rectangular region in memory using PySide6.
+    """Capture a Windows screen or a rectangular region in memory using PySide6.
 
     Args:
-        region: Optional validated bounding region. None captures full screen.
+        region: Optional validated bounding region in virtual desktop coordinates.
+            None captures full screen.
         max_dimension: Optional maximum width/height dimension in pixels for PNG encoding.
             When an image exceeds this bound (e.g. 4K/high-DPI full screen), it is downscaled
             smoothly to preserve aspect ratio, drastically reducing encoding latency and
             payload size while keeping actual screen region coordinates exact.
+        screen_index: Optional index of the screen to capture (0-based).
+            None defaults to primary screen.
     """
-    screen = QGuiApplication.primaryScreen()
+    screens = QGuiApplication.screens()
+    screen: QScreen | None = None
+    if screen_index is not None and screens and 0 <= screen_index < len(screens):
+        screen = screens[screen_index]
+    else:
+        screen = QGuiApplication.primaryScreen()
+
     if screen is None:
         raise ScreenCaptureError(
             "No primary screen is available. A Qt GUI application must be active."
@@ -257,8 +290,8 @@ def grab_screen_with_qt(
     geometry = screen.geometry()
     screen_w = geometry.width()
     screen_h = geometry.height()
-    screen_x = max(0, geometry.x())
-    screen_y = max(0, geometry.y())
+    screen_x = geometry.x()
+    screen_y = geometry.y()
 
     if region is not None:
         region.validate_within_bounds(
@@ -267,7 +300,9 @@ def grab_screen_with_qt(
             screen_x=screen_x,
             screen_y=screen_y,
         )
-        pixmap = screen.grabWindow(0, region.x, region.y, region.width, region.height)
+        local_x = region.x - screen_x
+        local_y = region.y - screen_y
+        pixmap = screen.grabWindow(0, local_x, local_y, region.width, region.height)
         actual_region = region
     else:
         pixmap = screen.grabWindow(0)
@@ -276,6 +311,7 @@ def grab_screen_with_qt(
             y=screen_y,
             width=max(1, pixmap.width()),
             height=max(1, pixmap.height()),
+            allow_negative=(screen_x < 0 or screen_y < 0),
         )
 
     if pixmap.isNull() or pixmap.width() <= 0 or pixmap.height() <= 0:
@@ -308,12 +344,30 @@ class ScreenCapturer:
         save_screenshots: bool = False,
         save_dir: Path | None = None,
         max_dimension: int | None = 1920,
+        display_manager: Any | None = None,
     ) -> None:
         self._grabber: ScreenGrabCallable = grabber if grabber is not None else grab_screen_with_qt
         self._region_selector = region_selector
         self._save_screenshots = bool(save_screenshots)
         self._save_dir = Path(save_dir) if save_dir is not None else None
         self._max_dimension = max_dimension
+        self._display_manager = display_manager
+
+    @property
+    def display_manager(self) -> Any | None:
+        """Configured DisplayManager, or None."""
+        return self._display_manager
+
+    @display_manager.setter
+    def display_manager(self, manager: Any) -> None:
+        self._display_manager = manager
+
+    @property
+    def active_display_index(self) -> int | None:
+        """Index of the currently active display monitor, or None."""
+        if self._display_manager is not None:
+            return getattr(self._display_manager, "active_index", None)
+        return None
 
     @property
     def save_screenshots(self) -> bool:
@@ -333,24 +387,41 @@ class ScreenCapturer:
     def _invoke_grabber(
         self,
         region: CaptureRegion | None,
+        *,
+        screen_index: int | None = None,
     ) -> tuple[bytes, int, int, CaptureRegion]:
-        """Invoke grabber with max_dimension if supported, otherwise with region alone."""
+        """Invoke grabber with max_dimension and screen_index if supported."""
+        target_index = screen_index
+        if target_index is None and self._display_manager is not None:
+            target_index = getattr(self._display_manager, "active_index", None)
+
         if self._grabber is grab_screen_with_qt:
-            return grab_screen_with_qt(region, max_dimension=self._max_dimension)
+            return grab_screen_with_qt(
+                region, max_dimension=self._max_dimension, screen_index=target_index
+            )
         try:
             sig = inspect.signature(self._grabber)
-            supports_kw = "max_dimension" in sig.parameters or any(
-                p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+            params = sig.parameters
+            supports_kw = "max_dimension" in params or any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+            )
+            supports_screen = "screen_index" in params or any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
             )
         except (ValueError, TypeError):
             supports_kw = False
+            supports_screen = False
 
+        kwargs: dict[str, Any] = {}
         if supports_kw:
-            try:
-                return self._grabber(region, max_dimension=self._max_dimension)  # type: ignore[call-arg]
-            except TypeError:
-                return self._grabber(region)
-        return self._grabber(region)
+            kwargs["max_dimension"] = self._max_dimension
+        if supports_screen and target_index is not None:
+            kwargs["screen_index"] = target_index
+
+        try:
+            return self._grabber(region, **kwargs)  # type: ignore[call-arg]
+        except TypeError:
+            return self._grabber(region)
 
     @staticmethod
     def _require_user_action(user_initiated: bool) -> None:
@@ -381,10 +452,13 @@ class ScreenCapturer:
         *,
         user_initiated: bool = False,
         persist: bool | None = None,
+        display_index: int | None = None,
     ) -> CapturedImage:
-        """Capture the full primary screen after verifying explicit user action."""
+        """Capture the full screen after verifying explicit user action."""
         self._require_user_action(user_initiated)
-        png_bytes, width, height, actual_region = self._invoke_grabber(None)
+        png_bytes, width, height, actual_region = self._invoke_grabber(
+            None, screen_index=display_index
+        )
         saved_path = self._maybe_persist(png_bytes, persist=persist)
 
         image = CapturedImage(
@@ -406,19 +480,29 @@ class ScreenCapturer:
 
     def capture_region(
         self,
-        region: CaptureRegion,
+        region: CaptureRegion | None = None,
         *,
         user_initiated: bool = False,
         persist: bool | None = None,
+        display_index: int | None = None,
     ) -> CapturedImage:
         """Capture a specific validated screen region after verifying explicit user action."""
         self._require_user_action(user_initiated)
-        if not isinstance(region, CaptureRegion):
+        target_region = region
+        if target_region is None and self._region_selector is not None:
+            target_region = self._region_selector()
+            if target_region is None:
+                raise CaptureCancelledError("Region selection was cancelled by the user.")
+        if target_region is None:
+            raise CaptureRegionError("No capture region was specified or selected.")
+        if not isinstance(target_region, CaptureRegion):
             raise CaptureRegionError(
-                f"Expected CaptureRegion instance, got {type(region).__name__}."
+                f"Expected CaptureRegion instance, got {type(target_region).__name__}."
             )
 
-        png_bytes, width, height, actual_region = self._invoke_grabber(region)
+        png_bytes, width, height, actual_region = self._invoke_grabber(
+            target_region, screen_index=display_index
+        )
         saved_path = self._maybe_persist(png_bytes, persist=persist)
 
         image = CapturedImage(

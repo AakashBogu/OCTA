@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 8.1 — External Tutorial Plugin System (complete)
+**Status:** 🟢 Phase 8.2 — Multi-Monitor Geometry & Display Adaptation (complete)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), and Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload) are implemented and verified.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), and Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling) are implemented and verified.
 
 ---
 
@@ -102,6 +102,14 @@ OCTA currently includes eight verified subsystems:
 - **Secret-Safe Diagnostics & Startup Resilience:** Invalid or malformed plugins produce clean, secret-safe diagnostic records (`PluginLoadDiagnostic`) without crashing application startup, the engine, or the desktop monitor window.
 - **Dynamic Reload & Provenance Integration:** Seamlessly integrates with `TutorialCatalog`, `TutorialEngine`, and `DiagnosticWindow` with distinct plugin provenance tags (`[Plugin: <name>]`), signal-driven UI combo refreshment, and on-demand reloading via `DesktopController.reload_tutorial_plugins()`.
 
+### 10. Phase 8.2 Multi-Monitor Geometry & Display Adaptation (`src/octa/intelligence/display.py`)
+- **Display Topology & Geometry Discovery:** Strongly-typed representation of connected monitors (`DisplayInfo`, `DisplayManager`) tracking virtual desktop coordinates, logical/physical resolutions, device pixel ratios (DPR), and primary display status.
+- **Negative Coordinate Support:** Cleanly handles multi-monitor configurations arranged to the left of or above the primary monitor (negative virtual coordinates) across `CaptureRegion`, `OverlayBounds`, `HighlightSpec`, and `ArrowSpec`.
+- **Coordinate Space Transformations:** Built-in mapping utilities (`global_to_local`, `local_to_global`, `global_rect_to_local`, `local_rect_to_global`, `scale_logical_to_physical`, `scale_physical_to_logical`) ensuring pixel-perfect screen grabs and visual overlay cues.
+- **Explicit Monitor Targeting & Consent:** Screen capture and overlay cues target the explicitly configured or user-selected monitor without silent monitor-switching or capturing unintended displays.
+- **Dynamic Display Resilience:** Listens for screen additions, removals, and resolution changes (`QGuiApplication.screenAdded`, `screenRemoved`), automatically falling back to the primary display if the active display is unplugged.
+- **Desktop UI Integration:** Live monitor selection dropdown in `DiagnosticWindow` showing resolutions, scaling percentages, and primary flags with real-time updates.
+
 ---
 
 ## Proposed Architecture
@@ -158,12 +166,13 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 6.0 | End-to-end tutorial engine & packaging | ✅ Complete |
 | 7.0 | Enhanced Godot character & desktop window | ✅ Complete |
 | 8.1 | External tutorial plugin system | ✅ Complete |
+| 8.2 | Multi-monitor geometry & display adaptation | ✅ Complete |
 
 ---
 
 ## Development Status
 
-- **Current phase:** Phase 8.1 Complete — External Tutorial Plugin System implemented, documented, and verified with strict security sandboxing, ID collision prevention, dynamic reload, and UI provenance tracking.
+- **Current phase:** Phase 8.2 Complete — Multi-Monitor Geometry & Display Adaptation implemented, documented, and verified with monitor discovery, negative desktop coordinates, DPI scaling, and dynamic display adaptation.
 - **What exists:**
   - Runnable Godot 4.7 project with transparent borderless desktop overlay, articulated 3D character, 6 animations, `AnimationTree` state machine, 100% procedural assets under MIT license (`ASSETS_LICENSE.md`), and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
@@ -172,8 +181,9 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
   - Phase 5.0 Voice Interaction (`src/octa/voice`) with push-to-talk in-memory audio capture (`PushToTalkRecorder`), injectable STT/TTS/playback interfaces (`SpeechToTextProvider`, `TextToSpeechProvider`, `AudioPlaybackBackend`), mocked and remote HTTPS adapters (`MockSTTProvider`, `MockTTSProvider`, `RemoteHTTPSTTProvider`, `RemoteHTTPTTSProvider`), remote voice consent disclosure (`VoiceConsentDialog`, `VoiceConsentManager`), task/instruction pipeline routing (`VoiceInteractionController`), visible microphone status, and immediate cancel/stop.
   - Phase 6.0 Tutorial Engine (`src/octa/tutorials`) with `TutorialEngine` orchestrating tutorial selection, text-based step navigation and manual completion, user-initiated capture with single-use consent and background AI verification, overlay and voice synchronization, built-in sample tutorials (OCTA welcome, Windows Notepad, Windows File Explorer), structured feedback collection (`FeedbackCollector`, `TutorialFeedbackDialog`, `TutorialSessionMetrics`), performance optimizations, and standalone Windows packaging (`octa.spec`, `build_windows_dist.py`).
   - Phase 8.1 External Tutorial Plugin System (`src/octa/tutorials/plugins.py`, `catalog.py`) with `plugin.json` discovery, strict schema validation, security sandboxing against path traversal and symlink escapes, ID collision protection against shadowing built-ins, secret-safe diagnostic reporting, dynamic reload, and provenance integration in `DiagnosticWindow`.
-  - Full automated test suite: 316 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
-- **What does not exist yet:** Wake-word detection (explicitly deferred), multi-monitor support, and cloud sync.
+  - Phase 8.2 Multi-Monitor Geometry & Display Adaptation (`src/octa/intelligence/display.py`) with `DisplayManager` monitor discovery, negative desktop coordinates, global-to-local coordinate transformations, DPI scaling, monitor selection in `DiagnosticWindow`, and dynamic disconnect handling.
+  - Full automated test suite: 330 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
+- **What does not exist yet:** Wake-word detection (explicitly deferred), accessibility features (high contrast / screen readers), and cloud sync.
 
 ---
 

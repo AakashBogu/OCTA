@@ -753,3 +753,55 @@ Implemented and verified Phase 8.1 — External Tutorial Plugin System for OCTA:
 
 ### Next Step
 - Review and stage Phase 8.1 files when approved.
+
+---
+
+## Task: Phase 8.2 — Multi-Monitor Geometry & Display Adaptation
+
+**Date:** 2026-11-12
+**Phase:** 8.2
+
+### Summary
+Implemented and verified Phase 8.2 — Multi-Monitor Geometry & Display Adaptation for OCTA:
+1. Created `src/octa/intelligence/display.py` providing `DisplayInfo` and `DisplayManager` for discovering, tracking, and selecting display monitors across single and multi-monitor desktop topologies.
+2. Implemented support for negative virtual desktop coordinates (`CaptureRegion.allow_negative`, `HighlightSpec.allow_negative`, `ArrowSpec.allow_negative`, `OverlayBounds`) when monitors are positioned to the left of or above the primary monitor.
+3. Implemented robust coordinate and DPI scaling transformations (`global_to_local`, `local_to_global`, `global_rect_to_local`, `local_rect_to_global`, `scale_logical_to_physical`, `scale_physical_to_logical`).
+4. Updated `grab_screen_with_qt` and `ScreenCapturer` in `src/octa/intelligence/capture.py` to support explicit monitor selection (`screen_index` / `display_manager`) and local-coordinate translation before invoking `grabWindow`.
+5. Updated `GuidanceOverlayWidget` in `src/octa/intelligence/overlay.py` with `set_display()`, adapting overlay geometry and annotation coordinates across monitors.
+6. Updated `TutorialEngine` in `src/octa/tutorials/engine.py` to synchronize the active monitor across screen captures and overlay bounds.
+7. Added `active_monitor_index` (`OCTA_MONITOR_INDEX`) to `AppConfig` and `.env.example`.
+8. Added monitor selection dropdown and display change listeners to `DiagnosticWindow` and `DesktopController`.
+9. Added 14 automated unit and integration tests (`tests/unit/test_display_manager.py`) validating single and multi-monitor discovery, negative coordinates, scaling, disconnect fallback, and UI synchronization.
+
+### Files Changed
+- `src/octa/intelligence/display.py` — Created. DisplayInfo and DisplayManager subsystem.
+- `src/octa/intelligence/capture.py` — Updated CaptureRegion and grab_screen_with_qt/ScreenCapturer with multi-monitor targeting and negative coordinates.
+- `src/octa/intelligence/overlay.py` — Updated HighlightSpec, ArrowSpec, overlay_hint_to_spec, and GuidanceOverlayWidget with display adaptation.
+- `src/octa/intelligence/__init__.py` — Exported DisplayInfo, DisplayManager, and DisplayProvider.
+- `src/octa/core/config.py` — Added active_monitor_index setting.
+- `.env.example` — Added OCTA_MONITOR_INDEX template documentation.
+- `src/octa/tutorials/engine.py` — Integrated DisplayManager with capturer and overlay synchronization.
+- `src/octa/desktop/controller.py` — Exposed display_manager, displays_changed, and select_display().
+- `src/octa/desktop/window.py` — Added monitor selector combo box and display change slots.
+- `tests/unit/test_display_manager.py` — Created. 14 unit and integration tests.
+- `ROADMAP.md` — Marked Phase 8.2 complete; updated future ideas.
+- `README.md` — Updated status, What Works Now, roadmap table, and test counts.
+- `CHANGELOG.md` — Added Phase 8.2 entry under [Unreleased].
+- `docs/PROGRESS.md` — Appended this progress entry.
+- `docs/architecture.md` — Documented multi-monitor geometry and display adaptation architecture.
+
+### Validation
+- **Display Test Suite**: Ran `pytest tests/unit/test_display_manager.py -v`: 14 passed.
+- **Capture & Overlay Test Suites**: Ran `pytest tests/unit/test_screen_capture.py tests/unit/test_overlay.py -v`: 20 passed.
+- **Godot Enhanced Character Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_enhanced_character.gd`: 66 passed, 0 failed.
+- **Godot Protocol Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_ws_protocol.gd`: 13 passed, 0 failed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 330 passed, 1 skipped.
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 74 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 8.2 files when approved.

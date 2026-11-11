@@ -25,6 +25,11 @@ from octa.intelligence.consent import (
     format_endpoint_for_disclosure,
     sanitize_endpoint_for_display,
 )
+from octa.intelligence.display import (
+    DisplayInfo,
+    DisplayManager,
+    DisplayProvider,
+)
 from octa.intelligence.exceptions import (
     CaptureCancelledError,
     CaptureRegionError,
@@ -99,6 +104,9 @@ __all__ = [
     "DEFAULT_ARROW_COLOR",
     "DEFAULT_HIGHLIGHT_COLOR",
     "DEFAULT_MIN_COMPLETE_CONFIDENCE",
+    "DisplayInfo",
+    "DisplayManager",
+    "DisplayProvider",
     "ExpectedOutcome",
     "GuidanceInstruction",
     "GuidanceOverlayWidget",

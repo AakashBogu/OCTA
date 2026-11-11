@@ -29,6 +29,7 @@ from PySide6.QtCore import QEventLoop, QObject, QThread, QTimer, Signal, Slot
 from octa.core.config import AppConfig
 from octa.intelligence.capture import CapturedImage, CaptureRegion, ScreenCapturer
 from octa.intelligence.consent import ConsentDecision, ConsentManager, ConsentRequest
+from octa.intelligence.display import DisplayInfo, DisplayManager
 from octa.intelligence.exceptions import (
     CaptureRegionError,
     ConsentDeclinedError,
@@ -140,6 +141,7 @@ class TutorialEngine(QObject):
         *,
         config: AppConfig | None = None,
         capturer: ScreenCapturer | None = None,
+        display_manager: DisplayManager | None = None,
         consent_manager: ConsentManager | None = None,
         llm_adapter: OpenAICompatibleAdapter | None = None,
         verifier: ProgressVerifier | None = None,
@@ -185,11 +187,25 @@ class TutorialEngine(QObject):
                 self._tutorials = (voice_task, *catalog)
                 initial_task = voice_task
 
+        if display_manager is not None:
+            self._display_manager = display_manager
+        else:
+            self._display_manager = DisplayManager(
+                initial_index=self._config.active_monitor_index,
+                parent=self,
+            )
+
         self._capturer = (
             capturer
             if capturer is not None
-            else ScreenCapturer(save_screenshots=self._config.capture_save_screenshots)
+            else ScreenCapturer(
+                save_screenshots=self._config.capture_save_screenshots,
+                display_manager=self._display_manager,
+            )
         )
+        if self._capturer.display_manager is None:
+            self._capturer.display_manager = self._display_manager
+
         self._consent_manager = consent_manager if consent_manager is not None else ConsentManager()
         if llm_adapter is not None:
             self._llm_adapter = llm_adapter
@@ -201,6 +217,8 @@ class TutorialEngine(QObject):
             )
         self._verifier = verifier if verifier is not None else ProgressVerifier(self._llm_adapter)
         self._overlay = overlay if overlay is not None else GuidanceOverlayWidget()
+        self._overlay.set_display(self._display_manager.active_display)
+        self._display_manager.active_display_changed.connect(self._on_active_display_changed)
         self._overlay_enabled = bool(overlay_enabled)
 
         storage_dir = (
@@ -256,6 +274,7 @@ class TutorialEngine(QObject):
         config: AppConfig | None = None,
         *,
         capturer: ScreenCapturer | None = None,
+        display_manager: DisplayManager | None = None,
         consent_manager: ConsentManager | None = None,
         llm_adapter: OpenAICompatibleAdapter | None = None,
         verifier: ProgressVerifier | None = None,
@@ -271,6 +290,7 @@ class TutorialEngine(QObject):
         return cls(
             config=resolved,
             capturer=capturer,
+            display_manager=display_manager,
             consent_manager=consent_manager,
             llm_adapter=llm_adapter,
             verifier=verifier,
@@ -402,6 +422,30 @@ class TutorialEngine(QObject):
     def plugin_discovery_result(self) -> PluginDiscoveryResult:
         """Full plugin discovery result with diagnostics."""
         return self._catalog_manager.discovery_result
+
+    @property
+    def display_manager(self) -> DisplayManager:
+        """Configured DisplayManager for multi-monitor geometry."""
+        return self._display_manager
+
+    @property
+    def active_display(self) -> DisplayInfo:
+        """Currently active display monitor."""
+        return self._display_manager.active_display
+
+    def select_display(self, index_or_name: int | str) -> bool:
+        """Select active monitor by index or name."""
+        return self._display_manager.select_display(index_or_name)
+
+    def _on_active_display_changed(self, new_display: DisplayInfo) -> None:
+        """Handle active monitor change by updating overlay screen bounds."""
+        self._overlay.set_display(new_display)
+        self.activity_logged.emit(
+            f"Active display monitor changed to: {new_display.display_label}",
+            "INFO",
+        )
+        if hasattr(self, "_current_instruction") and self._current_instruction is not None:
+            self._sync_overlay(self._current_instruction.overlay_cues)
 
     def is_plugin_tutorial(self, task_id: str) -> bool:
         """Return True if task_id belongs to a loaded external plugin."""
@@ -1207,19 +1251,24 @@ class TutorialEngine(QObject):
         *,
         explicit_region: CaptureRegion | None = None,
     ) -> CapturedImage:
+        display_idx = self._display_manager.active_index
         if explicit_region is not None:
-            return self._capturer.capture_region(explicit_region, user_initiated=True)
+            return self._capturer.capture_region(
+                explicit_region, user_initiated=True, display_index=display_idx
+            )
 
         target_region = step.expected_outcome.target_region
         if target_region is not None:
             try:
-                return self._capturer.capture_region(target_region, user_initiated=True)
+                return self._capturer.capture_region(
+                    target_region, user_initiated=True, display_index=display_idx
+                )
             except CaptureRegionError:
                 logger.info(
                     "Step target_region exceeded current screen bounds; "
                     "falling back to full screen."
                 )
-        return self._capturer.capture_full_screen(user_initiated=True)
+        return self._capturer.capture_full_screen(user_initiated=True, display_index=display_idx)
 
     @staticmethod
     def _build_initial_step_records(task: TaskDefinition) -> list[StepProgressRecord]:

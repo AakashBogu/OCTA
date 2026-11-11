@@ -14,6 +14,7 @@ from octa.communication.handoff import prepare_process_environment
 from octa.communication.server import WebSocketServer
 from octa.communication.state import ConnectionState
 from octa.core.config import AppConfig
+from octa.intelligence.display import DisplayInfo, DisplayManager
 from octa.intelligence.tasks import GuidanceInstruction
 from octa.process.exceptions import ProcessError
 from octa.process.manager import GodotProcessManager
@@ -52,6 +53,8 @@ class DesktopController(QObject):
     verification_completed = Signal(object)  # ProgressResult
     feedback_recorded = Signal(object)  # TutorialFeedback
     tutorials_catalog_reloaded = Signal()  # Emitted when tutorial plugins or catalog are reloaded
+    displays_changed = Signal(tuple)  # tuple[DisplayInfo, ...]
+    active_display_changed = Signal(object)  # DisplayInfo
 
     def __init__(
         self,
@@ -151,6 +154,10 @@ class DesktopController(QObject):
         self._tutorial_engine.feedback_recorded.connect(self.feedback_recorded.emit)
         self._tutorial_engine.tutorials_catalog_reloaded.connect(
             self.tutorials_catalog_reloaded.emit
+        )
+        self._tutorial_engine.display_manager.displays_changed.connect(self.displays_changed.emit)
+        self._tutorial_engine.display_manager.active_display_changed.connect(
+            self.active_display_changed.emit
         )
 
     # ──────────────────────────────────────────
@@ -452,6 +459,20 @@ class DesktopController(QObject):
     def reload_tutorial_plugins(self, plugins_dir: Any = None) -> Any:
         """Reload external tutorial plugins from disk and refresh catalog."""
         return self._tutorial_engine.reload_plugins(plugins_dir)
+
+    @property
+    def display_manager(self) -> DisplayManager:
+        """DisplayManager managing monitor geometry and selection."""
+        return self._tutorial_engine.display_manager
+
+    @property
+    def active_display(self) -> DisplayInfo:
+        """Currently active display monitor."""
+        return self._tutorial_engine.active_display
+
+    def select_display(self, index_or_name: int | str) -> bool:
+        """Select active display monitor by index or name."""
+        return self._tutorial_engine.select_display(index_or_name)
 
     # ──────────────────────────────────────────
     # Internal Lifecycle Sequencing & Helpers

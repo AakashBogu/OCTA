@@ -167,6 +167,7 @@ class AppConfig:
     voice_save_audio: bool = False
     voice_max_recording_seconds: float = DEFAULT_VOICE_MAX_RECORDING_SECONDS
     tutorial_plugin_dir: Path | None = None
+    active_monitor_index: int = 0
 
     def __post_init__(self) -> None:
         """Validate configuration values and normalize types."""
@@ -184,6 +185,11 @@ class AppConfig:
             self,
             "log_backup_count",
             _parse_int(self.log_backup_count, "log_backup_count", min_value=0),
+        )
+        object.__setattr__(
+            self,
+            "active_monitor_index",
+            _parse_int(self.active_monitor_index, "active_monitor_index", min_value=0),
         )
 
         # Validate and normalize booleans
@@ -570,6 +576,11 @@ class AppConfig:
                     if get_val("OCTA_TUTORIAL_PLUGIN_DIR")
                     else app_dir / "plugins" / "tutorials"
                 )
+            ),
+            "active_monitor_index": (
+                int(overrides["active_monitor_index"])
+                if "active_monitor_index" in overrides
+                else (int(get_val("OCTA_MONITOR_INDEX")) if get_val("OCTA_MONITOR_INDEX") else 0)
             ),
         }
 

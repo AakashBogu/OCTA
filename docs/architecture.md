@@ -1,6 +1,6 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), and Phase 8.1 (External tutorial plugin system) are implemented and verified.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), and Phase 8.2 (Multi-monitor geometry and display adaptation) are implemented and verified.
 >
 > **Last updated:** 2026-11-09
 
@@ -851,3 +851,49 @@ External plugin tutorials are displayed with their source plugin name in the tut
 - External plugin tutorial: `[Plugin: MS Paint Tutorials] Draw a Basic Shape (MS Paint)`
 
 Calling `DesktopController.reload_tutorial_plugins()` rescans the plugin directory, rebuilds the catalog, and updates the UI dropdown dynamically via the `tutorials_catalog_reloaded` signal, falling back cleanly to the default tutorial if the currently selected tutorial was removed.
+
+
+---
+
+## Phase 8.2 — Multi-Monitor Geometry & Display Adaptation Architecture
+
+### Overview & Display Topology
+
+OCTA Phase 8.2 introduces a unified multi-monitor geometry and display adaptation subsystem (`src/octa/intelligence/display.py`) ensuring screen capture, visual guidance overlays, and companion positioning operate reliably across arbitrary monitor setups.
+
+On Windows, multiple displays are arranged on a virtual desktop canvas. Depending on user arrangement in Windows Display Settings, secondary displays can be placed to the left of or above the primary monitor, giving them **negative virtual desktop coordinates**:
+
+```
+ ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────┐
+ │ Left Display (Index 1)│ │Primary Display(Index 0)│ │Right Display (Index 2)│
+ │ x: -1920, y: 0        │ │ x: 0, y: 0            │ │ x: 1920, y: 0         │
+ │ 1920x1080 @ 100% DPR  │ │ 1920x1080 @ 100% DPR  │ │ 2560x1440 @ 125% DPR  │
+ └───────────────────────┘ └───────────────────────┘ └───────────────────────┘
+```
+
+### Key Architectural Components
+
+1. **`DisplayInfo` (Data Model)**:
+   - Strongly-typed, immutable representation of a display.
+   - Captures logical geometry (`x, y, width, height`), available usable area excluding Windows taskbars (`available_x, available_y, available_width, available_height`), device pixel ratio (`device_pixel_ratio`), and primary status.
+   - Computes physical pixel dimensions (`physical_width`, `physical_height`) for DPI scaling.
+   - Provides bidirectional coordinate mapping (`global_to_local`, `local_to_global`, `global_rect_to_local`, `local_rect_to_global`).
+
+2. **`DisplayManager` (Lifecycle & Discovery)**:
+   - Subclasses `QObject`, discovering displays via `QGuiApplication.screens()` or an injectable `DisplayProvider` callable.
+   - Connects to Qt display change notifications (`screenAdded`, `screenRemoved`, `primaryScreenChanged`).
+   - Maintains the currently selected `active_display` (defaulting to the primary display or `OCTA_MONITOR_INDEX`).
+   - If an active secondary monitor is unplugged or disconnected, `refresh()` automatically detects the removal and gracefully falls back to the primary display without raising exceptions or freezing the UI.
+
+3. **Explicit Capture Gating & Negative Coordinates (`CaptureRegion`)**:
+   - `CaptureRegion` accepts `allow_negative=True` when representing virtual desktop space on negative monitors.
+   - `grab_screen_with_qt` resolves the target screen by index, translates global virtual coordinates into monitor-local coordinates (`local_x = region.x - screen_x`, `local_y = region.y - screen_y`), and invokes `screen.grabWindow(0, local_x, local_y, w, h)`.
+   - Never captures unintended screens: only the user-selected or active display is captured.
+
+4. **Visual Overlay Adaptation (`GuidanceOverlayWidget`)**:
+   - `GuidanceOverlayWidget.set_display(display)` moves the click-through transparent overlay widget to match the active monitor's exact bounds (`OverlayBounds(x=d.x, y=d.y, width=d.width, height=d.height)`).
+   - In-widget painting translates annotations relative to the monitor's top-left corner (`origin_x = bounds.x`, `origin_y = bounds.y`), ensuring highlights and arrows render accurately regardless of display offset.
+
+5. **Desktop UI Integration (`DiagnosticWindow`)**:
+   - Live `Monitor:` combo box displaying all connected displays with their resolutions, virtual coordinates, scaling factors, and primary indicators.
+   - When the user selects a different monitor, `DesktopController.select_display(index)` updates the `TutorialEngine`, moving the guidance overlay and capture target to that display immediately.

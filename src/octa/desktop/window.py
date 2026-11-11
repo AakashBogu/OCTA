@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from PySide6.QtCore import Slot
 from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
@@ -241,6 +243,17 @@ class DiagnosticWindow(QWidget):
         selector_row.addWidget(self._btn_reset_tutorial)
         tutorial_layout.addLayout(selector_row)
 
+        monitor_row = QHBoxLayout()
+        monitor_row.setSpacing(8)
+        monitor_label = QLabel("Monitor:", self)
+        monitor_label.setFont(label_font)
+        self._combo_monitor = QComboBox(self)
+        self._populate_monitor_combo()
+        self._combo_monitor.currentIndexChanged.connect(self._on_monitor_combo_changed)
+        monitor_row.addWidget(monitor_label)
+        monitor_row.addWidget(self._combo_monitor, stretch=1)
+        tutorial_layout.addLayout(monitor_row)
+
         self._lbl_tutorial_status = QLabel(
             self._controller.tutorial_engine.get_tutorial_status_summary(),
             self,
@@ -326,6 +339,8 @@ class DiagnosticWindow(QWidget):
         self._controller.tutorial_step_changed.connect(self._on_tutorial_step_changed)
         self._controller.verification_completed.connect(self._on_verification_completed)
         self._controller.tutorials_catalog_reloaded.connect(self._populate_tutorial_combo)
+        self._controller.displays_changed.connect(self._on_displays_changed)
+        self._controller.active_display_changed.connect(self._on_active_display_changed)
 
     # ──────────────────────────────────────────
     # UI Update Slots
@@ -520,6 +535,38 @@ class DiagnosticWindow(QWidget):
                 self._combo_tutorial.setCurrentIndex(idx)
         self._combo_tutorial.blockSignals(False)
 
+    @Slot()
+    def _populate_monitor_combo(self) -> None:
+        """Populate or refresh the monitor selector dropdown."""
+        self._combo_monitor.blockSignals(True)
+        self._combo_monitor.clear()
+        displays = self._controller.display_manager.displays
+        active_idx = self._controller.display_manager.active_index
+        selected_row = 0
+        for idx, display in enumerate(displays):
+            self._combo_monitor.addItem(display.display_label, userData=display.index)
+            if display.index == active_idx:
+                selected_row = idx
+        if self._combo_monitor.count() > 0:
+            self._combo_monitor.setCurrentIndex(selected_row)
+        self._combo_monitor.blockSignals(False)
+
+    @Slot(int)
+    def _on_monitor_combo_changed(self, index: int) -> None:
+        if index < 0:
+            return
+        disp_idx = self._combo_monitor.itemData(index)
+        if isinstance(disp_idx, int):
+            self._controller.select_display(disp_idx)
+
+    @Slot(tuple)
+    def _on_displays_changed(self, _displays: tuple[Any, ...]) -> None:
+        self._populate_monitor_combo()
+
+    @Slot(object)
+    def _on_active_display_changed(self, _display: Any) -> None:
+        self._populate_monitor_combo()
+
     @Slot(int)
     def _on_tutorial_combo_changed(self, index: int) -> None:
         if index < 0:
@@ -709,3 +756,12 @@ class DiagnosticWindow(QWidget):
         """Return the task_id of the currently selected tutorial in the combo box."""
         data = self._combo_tutorial.currentData()
         return str(data) if data is not None else ""
+
+    def get_selected_monitor_index(self) -> int:
+        """Return the display index of the currently selected monitor in the combo box."""
+        data = self._combo_monitor.currentData()
+        return int(data) if data is not None else 0
+
+    def get_monitor_combo_items(self) -> list[str]:
+        """Return list of text labels in the monitor selection combo box."""
+        return [self._combo_monitor.itemText(i) for i in range(self._combo_monitor.count())]

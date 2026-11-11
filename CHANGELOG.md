@@ -11,6 +11,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Phase 8.2 — Multi-Monitor Geometry & Display Adaptation (2026-11-12)**
+  - `src/octa/intelligence/display.py` — Created display management subsystem: `DisplayInfo`, `DisplayManager`, and `DisplayProvider`. Implements monitor discovery via Qt or injectable mock providers, negative virtual coordinate handling, logical-to-physical coordinate transformations, and dynamic display change listeners.
+  - `src/octa/intelligence/capture.py` — Updated `CaptureRegion` with `allow_negative=True` support and `to_local()`. Updated `grab_screen_with_qt` and `ScreenCapturer` to support targeted monitor captures via `screen_index` and `DisplayManager`.
+  - `src/octa/intelligence/overlay.py` — Updated `HighlightSpec` and `ArrowSpec` to support negative virtual desktop coordinates (`allow_negative=True`). Added `GuidanceOverlayWidget.set_display()` to re-target overlay geometry across monitors.
+  - `src/octa/core/config.py`, `.env.example` — Added `active_monitor_index` configuration setting (`OCTA_MONITOR_INDEX`), defaulting to 0 (Primary).
+  - `src/octa/tutorials/engine.py` — Integrated `DisplayManager` into `TutorialEngine`, synchronizing active display selection with screen capture and visual overlay bounds.
+  - `src/octa/desktop/controller.py`, `src/octa/desktop/window.py` — Exposed `display_manager` and display change signals in `DesktopController`, and added a live monitor selector dropdown `_combo_monitor` in `DiagnosticWindow` with dynamic reload.
+  - `tests/unit/test_display_manager.py` — Created 14 unit and integration tests covering monitor validation, negative coordinates, coordinate and scaling transformations, display changes and disconnect fallback, capturer delegation, overlay bounds, and UI dropdown synchronization.
 - **Phase 8.1 — External Tutorial Plugin System (2026-11-12)**
   - `src/octa/tutorials/plugins.py` — Created local plugin subsystem: `TutorialPluginManifest`, `LoadedTutorialPlugin`, `PluginLoadDiagnostic`, `PluginDiscoveryResult`, `load_tutorial_plugin()`, and `discover_tutorial_plugins()`. Enforces strict JSON schema validation, no code execution, read-only file access, and rejection of absolute paths, path traversal (`..`), and symlinks resolving outside the plugin directory.
   - `src/octa/tutorials/catalog.py` — Added `TutorialCatalog` combining built-in sample tutorials with discovered external plugins, provenance tracking (`get_tutorial_provenance()`, `is_plugin_tutorial()`), display title formatting (`[Plugin: <name>]`), and reserved ID protection (`BUILTIN_TASK_IDS`).

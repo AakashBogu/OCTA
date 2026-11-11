@@ -181,12 +181,21 @@
 - [x] Configurable plugin search directory (`tutorial_plugin_dir` in `AppConfig` and `OCTA_TUTORIAL_PLUGIN_DIR` environment variable)
 - [x] Comprehensive unit and integration test suite (`tests/unit/test_tutorial_plugins.py`) covering valid loading, malformed manifests, path escapes, ID collisions, engine execution, and dynamic UI updates
 
+### Phase 8.2 — Multi-Monitor Geometry & Display Adaptation *(complete)*
+
+- [x] Multi-monitor discovery and topology tracking with `DisplayManager` and `DisplayInfo` (`src/octa/intelligence/display.py`)
+- [x] Safe handling of negative virtual desktop coordinates for displays placed left of or above primary display (`CaptureRegion.allow_negative`, `OverlayBounds`, `HighlightSpec`, `ArrowSpec`)
+- [x] Screen-coordinate mapping and transformations (`global_to_local`, `local_to_global`, rect mapping, DPI scaling conversions)
+- [x] Explicit monitor selection for screen capture and visual overlay cues (`ScreenCapturer`, `GuidanceOverlayWidget.set_display`)
+- [x] Graceful fallback on invalid monitor selection or disconnected displays without crashing startup or runtime
+- [x] Monitor selector combo and dynamic display change listeners in `DiagnosticWindow` and `DesktopController`
+- [x] Comprehensive test suite covering single, multi-monitor, negative coordinates, scaling, dynamic disconnect, and UI selection (`tests/unit/test_display_manager.py`)
+
 ---
 
 ## Future Ideas *(not scheduled)*
 
 - Plugin distribution tool & package manager (signed archive bundles for external tutorials)
-- Multi-monitor support
 - Accessibility features (high contrast, screen reader compatibility)
 - Localization / multi-language support
 - Cloud sync for progress and preferences

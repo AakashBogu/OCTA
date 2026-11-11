@@ -87,6 +87,7 @@ class HighlightSpec:
     label: str = ""
     color: str = DEFAULT_HIGHLIGHT_COLOR
     stroke_width: int = 3
+    allow_negative: bool = False
 
     def __post_init__(self) -> None:
         x = _require_coord_int(self.x, "x")
@@ -95,7 +96,7 @@ class HighlightSpec:
         height = _require_coord_int(self.height, "height")
         stroke = _require_coord_int(self.stroke_width, "stroke_width")
 
-        if x < 0 or y < 0:
+        if not self.allow_negative and (x < 0 or y < 0):
             raise InvalidOverlayCoordinatesError(
                 f"Highlight coordinates must be non-negative, got ({x}, {y})."
             )
@@ -137,6 +138,7 @@ class ArrowSpec:
     label: str = ""
     color: str = DEFAULT_ARROW_COLOR
     stroke_width: int = 3
+    allow_negative: bool = False
 
     def __post_init__(self) -> None:
         sx = _require_coord_int(self.start_x, "start_x")
@@ -145,7 +147,7 @@ class ArrowSpec:
         ey = _require_coord_int(self.end_y, "end_y")
         stroke = _require_coord_int(self.stroke_width, "stroke_width")
 
-        if sx < 0 or sy < 0 or ex < 0 or ey < 0:
+        if not self.allow_negative and (sx < 0 or sy < 0 or ex < 0 or ey < 0):
             raise InvalidOverlayCoordinatesError(
                 f"Arrow coordinates must be non-negative, got ({sx}, {sy}) -> ({ex}, {ey})."
             )
@@ -186,6 +188,8 @@ def overlay_hint_to_spec(
     if not isinstance(hint, OverlayHint):
         raise InvalidOverlayCoordinatesError("Expected an OverlayHint instance.")
 
+    allow_neg = screen is not None and (screen.x < 0 or screen.y < 0)
+
     if hint.kind == OverlayElementType.HIGHLIGHT:
         if hint.bounds is None:
             raise InvalidOverlayCoordinatesError("Highlight OverlayHint is missing bounds.")
@@ -196,6 +200,7 @@ def overlay_hint_to_spec(
             height=hint.bounds.height,
             label=hint.label,
             color=hint.color or DEFAULT_HIGHLIGHT_COLOR,
+            allow_negative=allow_neg or getattr(hint.bounds, "allow_negative", False),
         )
     elif hint.kind == OverlayElementType.ARROW:
         if hint.start_x is None or hint.start_y is None or hint.end_x is None or hint.end_y is None:
@@ -207,6 +212,7 @@ def overlay_hint_to_spec(
             end_y=hint.end_y,
             label=hint.label,
             color=hint.color or DEFAULT_ARROW_COLOR,
+            allow_negative=allow_neg,
         )
     else:
         raise InvalidOverlayCoordinatesError(f"Unsupported OverlayHint kind: {hint.kind!r}")
@@ -289,6 +295,21 @@ class GuidanceOverlayWidget(QWidget):
         self._screen_bounds = screen_bounds
         self._apply_geometry()
         self.update()
+
+    def set_display(self, display: Any) -> None:
+        """Update overlay geometry to match a DisplayInfo monitor."""
+        if hasattr(display, "to_overlay_bounds"):
+            bounds = display.to_overlay_bounds()
+        elif all(hasattr(display, attr) for attr in ("x", "y", "width", "height")):
+            bounds = OverlayBounds(
+                x=display.x,
+                y=display.y,
+                width=display.width,
+                height=display.height,
+            )
+        else:
+            raise InvalidOverlayCoordinatesError(f"Invalid display object: {display!r}")
+        self.set_screen_bounds(bounds)
 
     @property
     def highlights(self) -> tuple[HighlightSpec, ...]:
