@@ -1,8 +1,8 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), Phase 10.1 (Visual region & directional cue selector), Phase 10.2 (Interactive step & tutorial builder UI), and Phase 10.3 (Plugin project workspace & integrated package wizard) are implemented and verified.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), Phase 10.1 (Visual region & directional cue selector), Phase 10.2 (Interactive step & tutorial builder UI), Phase 10.3 (Plugin project workspace & integrated package wizard), and Phase 11.1 (Live step verification sandbox & prompt diagnostics) are implemented and verified.
 >
-> **Last updated:** 2026-11-12
+> **Last updated:** 2026-11-13
 
 ---
 
@@ -1413,3 +1413,108 @@ Phase 10.3 introduces a project-centric authoring workspace model (`TutorialPlug
    - A verified `.octapack` bundle is built in a secure temporary directory (`tempfile.mkdtemp`), verified in-memory using `verify_tutorial_package`, and presented via `PluginInstallPreviewDialog` for explicit author confirmation.
    - Installation utilizes Phase 9.3's staged extraction and atomic replacement (`install_tutorial_package`) into the managed plugin directory, protecting against silent overwrites.
    - On completion, `DesktopController.reload_tutorial_plugins` is invoked to immediately refresh the live tutorial catalog and UI selector dropdown without restarting OCTA.
+
+---
+
+## Phase 11.1 — Live Step Verification Sandbox & Prompt Diagnostics Architecture
+
+Phase 11.1 introduces an interactive authoring workbench (`StepVerificationDialog`) launched directly from the step editor in `TutorialAuthoringDialog` ("🧪 Test Verification..."). It enables tutorial authors to test, diagnose, and iterate on multimodal step verification criteria against live desktop screen state or deterministic simulated test cases without altering the tutorial until explicitly confirmed.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       TutorialAuthoringDialog                               │
+│                                                                             │
+│  • Task & Step Sequence Editor                                              │
+│  • Step Outcome Group: Description, Elements, Hint                          │
+│  • "🧪 Test Verification..." Button ────────────────────────────────────┐   │
+└─────────────────────────────────────────────────────────────────────────│───┘
+                                                                          │
+                                                                          ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                StepVerificationDialog (Authoring Workbench)                 │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ Step & Task Header (Task ID, Title, Step Index, Step Instruction)     │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌───────────────────────────────┐     ┌─────────────────────────────────┐  │
+│  │ Draft Criteria Editor         │     │ Screen Capture Bench            │  │
+│  │                               │     │                                 │  │
+│  │ • Target Outcome Description  │     │ • "📸 Capture Screenshot Now"   │  │
+│  │ • Required Elements (1/line)  │     │   (user_initiated=True)         │  │
+│  │ • Verification Hint           │     │ • [x] Restrict to Cue Region    │  │
+│  │ • "↺ Reset to Step Original"  │     │ • Memory-only PNG thumbnail     │  │
+│  └───────────────┬───────────────┘     └────────────────┬────────────────┘  │
+│                  │                                      │                   │
+│                  └───────────────────┬──────────────────┘                   │
+│                                      │                                      │
+│                                      ▼                                      │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ Mode Selection: (o) Live Multimodal AI     ( ) Simulated / Offline   │  │
+│  │                                                                       │  │
+│  │ Live Mode Flow:                                                       │  │
+│  │   1. Require single-use consent (request_sha256 + endpoint_sha256)    │  │
+│  │   2. ProgressVerifier.verify_step_with_image (memory-only image)      │  │
+│  │   3. Graceful handling if consent declined (no transmission)         │  │
+│  │                                                                       │  │
+│  │ Offline Mode Flow:                                                    │  │
+│  │   1. Preset Scenarios: Complete / Missing / Low Conf / Ambiguous      │  │
+│  │   2. Validates criteria schema, checklist matching & downgrades      │  │
+│  │   3. Zero network requests, zero API keys required                   │  │
+│  └───────────────────────────────────┬───────────────────────────────────┘  │
+│                                      │                                      │
+│                                      ▼                                      │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ Verification Diagnostics Readout                                      │  │
+│  │                                                                       │  │
+│  │ • Status Badge: [ COMPLETE / INCOMPLETE / UNCERTAIN / SIMULATED ]     │  │
+│  │ • Confidence Bar: [==========      ] 82% (Threshold: 75%)             │  │
+│  │ • Required Elements Checklist:                                        │  │
+│  │     ✔ File menu opened                                                │  │
+│  │     ✖ 'Save As' item highlighted                                      │  │
+│  │ • Downgrade / Uncertainty Explanations (conservative reasoning)       │  │
+│  │ • Secret Redaction: API keys / tokens redacted via redact_sensitive  │  │
+│  └───────────────────────────────────┬───────────────────────────────────┘  │
+│                                      │                                      │
+│       ┌──────────────────────────────┴──────────────────────────────┐       │
+│       ▼                                                             ▼       │
+│  [✖ Discard & Close]                                    [✔ Apply Changes]   │
+│  (Leaves step untouched)                                (Confirms & flushes │
+│                                                          to Step Inspector) │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Architectural Principles & Privacy Invariants
+
+1. **Explicit Capture Initiation & Memory-Only Image Handling**:
+   - Screen capture requires explicit author action ("📸 Capture Screenshot Now"). The system never captures screen pixels autonomously in the background or during authoring.
+   - All captures enforce `user_initiated=True`.
+   - Captured images are held strictly in memory as `CapturedImage` (PNG bytes in `QBuffer`) and decoded into `QImage` for GUI thumbnail rendering. No screenshot files are persisted to disk, cached in temporary folders, or committed to project archives.
+
+2. **Strict Single-Use Consent Binding**:
+   - In Live Multimodal AI mode, every verification run requires and validates single-use user consent bound cryptographically to `request_sha256` and `endpoint_sha256` via `ConsentManager`.
+   - If the user declines consent, verification is halted immediately (`ConsentDeclinedError`), leaving captured data in local memory without transmitting bytes to any remote API.
+   - The workbench does not bypass, cache, or auto-grant consent across executions.
+
+3. **Conservative Evidence Diagnostics & Threshold Visualization**:
+   - The workbench mirrors OCTA's core conservative verification model:
+     - `confidence < 0.75` results in an `UNCERTAIN` classification.
+     - Ambiguous evidence or missing required elements prevent false-positive `COMPLETE` outcomes.
+   - The UI displays:
+     - Prominent status badge with semantic color coding.
+     - Confidence bar clearly benchmarked against the 75% threshold.
+     - Item-by-item required element checklist (`✔` observed vs `✖` missing).
+     - Diagnostic explanation text explaining conservative downgrades and missing cues.
+
+4. **Deterministic Simulated / Offline Test Bench**:
+   - Authors without an active internet connection or configured LLM API key can test verification logic via the Offline Simulation mode.
+   - Provides four preset scenarios:
+     - **Pass / Complete**: All elements detected, confidence 92% $\ge 0.75 \implies \text{COMPLETE}$.
+     - **Incomplete / Missing**: Missing elements, confidence 40% $\implies \text{INCOMPLETE}$.
+     - **Uncertain / Low Confidence**: Ambiguous visual evidence, confidence 55% $< 0.75 \implies \text{UNCERTAIN}$.
+     - **Uncertain / Ambiguous Evidence**: Vague criteria phrasing, confidence 60% $< 0.75 \implies \text{UNCERTAIN}$.
+   - Evaluates criteria schema parsing, item splitting, and UI rendering offline without making any network requests.
+
+5. **Secret Redaction & Safe Temporary Drafts**:
+   - All diagnostic outputs, model reasoning excerpts, and error messages pass through `redact_sensitive_text`, ensuring API keys, bearer tokens, and credentials are never visible on screen or in logs.
+   - All adjustments in `StepVerificationDialog` take place on an isolated working draft. The original tutorial step is only updated when the author explicitly clicks "✔ Apply Changes to Step" and confirms via `QMessageBox.question`. Discarding or closing the dialog leaves the step and tutorial untouched.

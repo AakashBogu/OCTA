@@ -337,6 +337,17 @@ class TutorialAuthoringDialog(QDialog):
         row_o3.addWidget(self._txt_outcome_hint, stretch=1)
         out_layout.addLayout(row_o3)
 
+        row_o4 = QHBoxLayout()
+        self._btn_test_verification = QPushButton("🧪 Test Verification...", grp_outcome)
+        self._btn_test_verification.setStyleSheet(
+            "background-color: #0d9488; color: white; font-weight: bold; padding: 4px 10px;"
+        )
+        self._btn_test_verification.setAccessibleName("Open Step Verification Test Bench")
+        self._btn_test_verification.clicked.connect(self._on_test_verification_clicked)
+        row_o4.addWidget(self._btn_test_verification)
+        row_o4.addStretch()
+        out_layout.addLayout(row_o4)
+
         insp_layout.addWidget(grp_outcome)
 
         # Visual Guidance Overlay Cues Box
@@ -975,6 +986,66 @@ class TutorialAuthoringDialog(QDialog):
 
         dlg = PluginProjectDialog(controller=self._controller, parent=self)
         dlg.exec()
+
+    @Slot()
+    def _on_test_verification_clicked(self) -> None:
+        """Open the Step Verification Test Bench for the currently selected step."""
+        if not (0 <= self._active_step_index < len(self._steps)):
+            QMessageBox.warning(
+                self,
+                "No Step Selected",
+                "Please select a tutorial step to test its verification criteria.",
+            )
+            return
+
+        # Flush active fields into current step dictionary
+        self._save_inspector_to_active_step()
+        s = self._steps[self._active_step_index]
+
+        # Construct TaskStep from active dictionary
+        current_step = TaskStep(
+            step_id=str(s.get("step_id") or f"step-{self._active_step_index + 1}"),
+            order=self._active_step_index + 1,
+            title=str(s.get("title") or f"Step {self._active_step_index + 1}"),
+            instruction=str(s.get("instruction") or "Perform the step action."),
+            expected_outcome=ExpectedOutcome(
+                description=str(s.get("outcome_desc") or "Expected outcome is visible."),
+                required_elements=tuple(s.get("outcome_req", ())),
+                verification_hint=str(s.get("outcome_hint", "")),
+            ),
+            hints=tuple(s.get("hints", ())),
+            overlay_cues=tuple(s.get("overlay_cues", ())),
+        )
+
+        try:
+            task_def = self.build_task_definition()
+        except Exception:
+            # Fallback wrapper if other steps or fields are not yet completely valid
+            task_def = TaskDefinition(
+                task_id=self._txt_task_id.text().strip() or "test-task",
+                title=self._txt_title.text().strip() or "Test Tutorial",
+                application=self._txt_application.text().strip() or "Application",
+                goal=self._txt_goal.text().strip() or "Learning Goal",
+                steps=(current_step,),
+            )
+
+        from octa.desktop.step_verification_dialog import StepVerificationDialog
+
+        dlg = StepVerificationDialog(
+            task=task_def,
+            step=current_step,
+            controller=self._controller,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.applied_outcome is not None:
+            s["outcome_desc"] = dlg.applied_outcome.description
+            s["outcome_req"] = list(dlg.applied_outcome.required_elements)
+            s["outcome_hint"] = dlg.applied_outcome.verification_hint
+            self._load_active_step_into_inspector()
+            self._mark_dirty()
+            self._lbl_status.setText(
+                f"Applied updated verification criteria to Step {current_step.order}."
+            )
 
     def _mark_dirty(self) -> None:
         self._is_dirty = True

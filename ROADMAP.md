@@ -270,6 +270,34 @@
 
 ---
 
+## Phase 11 — Tutorial Playtesting, Verification Test Bench & Author Simulation Studio *(in progress)*
+
+### Phase 11.1 — Live Step Verification Sandbox & Prompt Diagnostics *(complete)*
+- [x] In-editor step verification test bench (`StepVerificationDialog` in `src/octa/desktop/step_verification_dialog.py`) integrated into `TutorialAuthoringDialog` supporting on-demand region and full screen capture
+- [x] Dry-run verification against `ExpectedOutcome` (`description`, `required_elements`, `verification_hint`) using `ProgressVerifier`
+- [x] Detailed diagnostic inspector: confidence score breakdown vs 0.75 threshold, element match checklist, conservative downgrade explanations, and model reasoning view
+- [x] Interactive prompt tuning workflow: author iterates and refines verification criteria in real-time before applying changes to the step
+- [x] Strict privacy and consent safeguards: user-initiated capture only, exact-request single-use remote LLM consent binding, memory-only image buffers, and credential redaction
+- [x] Comprehensive automated test suite with mock LLM providers covering threshold evaluations, missing elements, and UI state updates (13 unit tests in `tests/unit/test_step_verification_dialog.py`)
+
+### Phase 11.2 — Speech Preview & Audio Timing Simulator *(planned)*
+- [ ] In-editor TTS instruction preview in `TutorialAuthoringDialog` with audio playback controls for spoken instructions and progressive hints
+- [ ] Speech timing estimator calculating word counts, estimated duration, and recommended visual cue display durations
+- [ ] Audio playback integration with `TutorialSoundPlayer` and injectable `TextToSpeechProvider` protocols
+- [ ] Synchronized cue preview: simulates visual overlay highlight and arrow durations timed to spoken audio
+- [ ] Immediate playback stop/cancel with buffer flushing and strict adherence to user audio mute/disable preferences
+- [ ] Comprehensive unit and Qt interaction tests verifying duration calculations, playback state machine, and audio preference enforcement
+
+### Phase 11.3 — Interactive Author Step Runner & Playtest Sandbox *(planned)*
+- [ ] Dedicated non-destructive playtest mode launched directly from `TutorialAuthoringDialog` and `PluginProjectDialog`
+- [ ] Author playtest controls: free step jumping (forward/back), step reset, and "Force Step Complete" / "Simulate Failure" overrides
+- [ ] Real-time visual overlay rendering on the selected monitor matching learner-facing accessibility cues
+- [ ] Companion Godot 3D robot character state synchronization (`LISTENING`, `THINKING`, `SUCCESS`) over local WebSocket bridge
+- [ ] Playtest session isolation: prevents playtest runs from mutating or polluting learner feedback metrics and session logs
+- [ ] Comprehensive automated tests verifying step navigation, overlay cleanup, character state transitions, and session metrics isolation
+
+---
+
 ## Future Ideas *(not scheduled)*
 
 - Localization / multi-language support (i18n / l10n for UI, Godot prompts, and tutorial content)

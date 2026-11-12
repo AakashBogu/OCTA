@@ -38,6 +38,7 @@ hidden_imports = [
     "octa.desktop.window",
     "octa.desktop.plugin_manager_dialog",
     "octa.desktop.plugin_project_dialog",
+    "octa.desktop.step_verification_dialog",
     "octa.desktop.tutorial_authoring_dialog",
     "octa.desktop.tray",
     "octa.intelligence",

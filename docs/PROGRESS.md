@@ -1146,3 +1146,51 @@ Implemented and verified Phase 10.3 — Plugin Project Workspace & Integrated Pa
 ### Next Step
 - Review and stage Phase 10.3 files when approved.
 - Plan next milestones (e.g. Phase 11).
+
+---
+
+## Task: Phase 11.1 — Live Step Verification Sandbox & Prompt Diagnostics
+
+**Date:** 2026-11-13
+**Phase:** 11.1
+
+### Summary
+Implemented and verified Phase 11.1 — Live Step Verification Sandbox & Prompt Diagnostics for OCTA:
+1. Created `src/octa/desktop/step_verification_dialog.py` implementing `StepVerificationDialog`, providing an authoring workbench for testing and refining multimodal AI verification criteria directly on a selected tutorial step.
+2. Built temporary draft criteria editor (`description`, `required_elements`, `verification_hint`) with "↺ Reset to Step Original" restoring starting values.
+3. Implemented explicit user-initiated capture (`user_initiated=True`) with target cue region restriction option, rendering in-memory PNG thumbnails (`QBuffer`, `QImage`, `CapturedImage`) without disk persistence.
+4. Integrated live multimodal verification via `ProgressVerifier.verify_step_with_image` requiring and validating single-use user consent bound to outbound image and endpoint digests (`request_sha256`, `endpoint_sha256`) through `ConsentManager`, handling user decline cleanly without sending data or crashing.
+5. Implemented comprehensive diagnostic readout: outcome status badge (`COMPLETE`, `INCOMPLETE`, `UNCERTAIN`, `SIMULATED`), dynamic confidence progress bar evaluated against the conservative threshold ($0.75$), required elements checklist with green checkmarks (`✔`) and red crosses (`✖`), and detailed explanations for conservative status downgrades.
+6. Implemented simulated / offline test bench with four deterministic scenarios (Complete, Incomplete, Low Confidence, Ambiguous Evidence) validating criteria schema, item splitting, and conservative downgrade logic completely offline without network requests, API keys, or live AI inference.
+7. Applied `redact_sensitive_text` across model reasoning and error messages, ensuring API keys and secrets are never exposed in user-facing dialogs or logs.
+8. Implemented safe criteria apply workflow: changes are tested on an isolated working draft and applied to the step only after explicit user confirmation ("✔ Apply Changes to Step"); closing or discarding leaves the step and tutorial untouched.
+9. Connected "🧪 Test Verification..." button in `TutorialAuthoringDialog` step inspector outcome group box, opening `StepVerificationDialog` and applying updated criteria on accept.
+10. Exported `StepVerificationDialog` in `src/octa/desktop/__init__.py` and added to `octa.spec` hidden imports.
+11. Added 14 automated unit and Qt interaction tests in `tests/unit/test_step_verification_dialog.py` covering dialog initialization and pre-population, criteria reset, discard preservation and retained data cleanup, close event cleanup, confirmed apply, empty description validation, all 4 offline simulation scenarios, explicit capture initiation without disk persistence, full screen fallback when region is unchecked, capture cancellation, live verification with mock verifier, consent decline handling, sensitive secret redaction, and tutorial builder button wiring.
+
+### Files Changed
+- `src/octa/desktop/step_verification_dialog.py` — Created `StepVerificationDialog` authoring workbench.
+- `src/octa/desktop/tutorial_authoring_dialog.py` — Added "🧪 Test Verification..." button and integration slot.
+- `src/octa/desktop/__init__.py` — Exported `StepVerificationDialog`.
+- `octa.spec` — Added hidden import for `octa.desktop.step_verification_dialog`.
+- `tests/unit/test_step_verification_dialog.py` — Created 14 unit and Qt interaction tests.
+- `ROADMAP.md` — Marked Phase 11.1 complete.
+- `README.md` — Updated status line, What Works Now with section 18, roadmap table, development status, and directory structure.
+- `CHANGELOG.md` — Added Phase 11.1 entry under [Unreleased].
+- `docs/architecture.md` — Documented Phase 11.1 architecture, privacy invariants, and data flow.
+- `docs/PROGRESS.md` — Appended this progress entry.
+
+### Validation
+- **Step Verification Test Suite**: Ran `pytest tests/unit/test_step_verification_dialog.py -v`: 14 passed in 2.35s.
+- **Focused Suite**: Ran `pytest tests/unit/test_step_verification_dialog.py tests/unit/test_tutorial_authoring.py tests/unit/test_progress_verifier.py tests/unit/test_screen_capture.py -v`: 46 passed in 6.60s.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 439 passed, 1 skipped (Windows unprivileged symlinks).
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 89 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 11.1 files when approved.
+- Plan and implement Phase 11.2 (Multi-Step Tutorial Simulation & Run-Through Dry Mode).

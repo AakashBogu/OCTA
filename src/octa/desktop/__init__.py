@@ -10,6 +10,7 @@ from octa.desktop.plugin_project_dialog import (
     PackageWizardDialog,
     PluginProjectDialog,
 )
+from octa.desktop.step_verification_dialog import StepVerificationDialog
 from octa.desktop.tray import OctaSystemTray, create_tray_icon
 from octa.desktop.tutorial_authoring_dialog import TutorialAuthoringDialog
 from octa.desktop.window import DiagnosticWindow
@@ -23,6 +24,7 @@ __all__ = [
     "PackageWizardDialog",
     "PluginManagerDialog",
     "PluginProjectDialog",
+    "StepVerificationDialog",
     "TutorialAuthoringDialog",
     "create_tray_icon",
 ]
