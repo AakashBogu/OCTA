@@ -45,6 +45,7 @@ hidden_imports = [
     "octa.intelligence.llm",
     "octa.intelligence.verifier",
     "octa.intelligence.overlay",
+    "octa.intelligence.authoring_overlay",
     "octa.intelligence.exceptions",
     "octa.voice",
     "octa.voice.audio",

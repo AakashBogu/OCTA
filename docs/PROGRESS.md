@@ -1000,3 +1000,50 @@ Implemented and verified Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catal
 ### Next Step
 - Review and stage Phase 9.3 files when approved.
 - All Phase 9 milestones (9.1, 9.2, 9.3) are now complete.
+
+---
+
+## Task: Phase 10.1 — Visual Region & Directional Cue Selector
+
+**Date:** 2026-11-12
+**Phase:** 10.1
+
+### Summary
+Implemented and verified Phase 10.1 — Visual Region & Directional Cue Selector Overlay for OCTA:
+1. Created `src/octa/intelligence/authoring_overlay.py` implementing `AuthoringOverlayWidget`, `AuthoringCueDialog`, `AuthoringMode`, and coordinate conversion utilities.
+2. Built interactive on-screen selection surface allowing authors to click-and-drag highlight bounding boxes (`HighlightSpec`) and draw directional guidance arrows (`ArrowSpec`).
+3. Integrated multi-monitor topology support via `DisplayManager`, mapping monitor-local click coordinates to global virtual desktop coordinates with support for secondary displays placed left of or above primary (`allow_negative=True`).
+4. Added high-DPI scaling helpers (`logical_to_physical`, `physical_to_logical`, `rect_logical_to_physical`, `rect_physical_to_logical`) to calculate and display exact physical device pixels based on device pixel ratio.
+5. Implemented floating HUD toolbar with coordinate spinboxes (`X/Y/W/H` or `X1/Y1/X2/Y2`), mode switcher (`Highlight` / `Arrow`), label text field, high contrast toggle, and live physical pixel readouts.
+6. Implemented learner-accurate preview rendering matching `GuidanceOverlayWidget` (standard contrast with alpha fill and label pills; high contrast with dual-stroke outer dark halo and inner vibrant yellow stroke, L-shaped corner indicator brackets `[■]`, target ring `O` and arrowhead `[▶]`, and scaled text).
+7. Created `AuthoringCueDialog` modal dialog launched from `DiagnosticWindow` ("&Cue Selector..."), providing monitor selection, on-screen selector launch, coordinate fine-tuning, and spec creation.
+8. Enforced strict privacy and dismissal safety: no screen pixels captured or recorded, no remote network calls, no automated input synthesis, and immediate window hiding/closing on `Escape` or `Cancel` so no click-intercepting surface lingers.
+9. Added `"octa.intelligence.authoring_overlay"` to `octa.spec` hidden imports.
+10. Added 11 automated unit and Qt interaction tests in `tests/unit/test_authoring_overlay.py` covering drag selection, arrow creation, negative monitor coords, DPI scaling, fine-tuning spinboxes, high contrast, cancel/confirm dismissal, and UI integration.
+
+### Files Changed
+- `src/octa/intelligence/authoring_overlay.py` — Created authoring overlay widget, cue dialog, mode enum, and coordinate helpers.
+- `src/octa/intelligence/__init__.py` — Exported Phase 10.1 classes and functions.
+- `src/octa/desktop/window.py` — Added "&Cue Selector..." button and connected to `AuthoringCueDialog`.
+- `octa.spec` — Added `octa.intelligence.authoring_overlay` to PyInstaller hidden imports.
+- `tests/unit/test_authoring_overlay.py` — Added 11 unit and Qt interaction tests.
+- `ROADMAP.md` — Marked Phase 10.1 complete.
+- `README.md` — Updated status line, What Works Now, roadmap table, and test counts.
+- `CHANGELOG.md` — Added Phase 10.1 entry under [Unreleased].
+- `docs/architecture.md` — Documented Phase 10.1 architecture.
+- `docs/PROGRESS.md` — Appended this progress entry.
+
+### Validation
+- **Authoring Overlay Test Suite**: Ran `pytest tests/unit/test_authoring_overlay.py -v`: 11 passed.
+- **Focused Multi-Monitor & Plugin Test Suite**: Ran `pytest tests/unit/test_authoring_overlay.py tests/unit/test_display_manager.py tests/unit/test_plugin_manager.py -v`: 37 passed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 396 passed, 1 skipped.
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 82 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 10.1 files when approved.
+- Proceed to Phase 10.2: Interactive Step & Tutorial Builder UI (`TutorialAuthoringDialog`).

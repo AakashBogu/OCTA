@@ -1,6 +1,6 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), and Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration) are implemented and verified.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), and Phase 10.1 (Visual region & directional cue selector) are implemented and verified.
 >
 > **Last updated:** 2026-11-12
 
@@ -1203,3 +1203,72 @@ Show Preview Dialog (`PluginInstallPreviewDialog`)  Show Critical Error Dialog
 5. **Zero-Restart Dynamic Synchronization**:
    - After installation or uninstallation, `DesktopController` immediately invokes `reload_tutorial_plugins()`.
    - The catalog emits `tutorials_catalog_reloaded`, which updates the companion UI dropdown seamlessly without terminating or restarting the application.
+
+---
+
+## Phase 10.1 — Visual Region & Directional Cue Selector Overlay Architecture
+
+The following describes the interactive visual authoring overlay and coordinate mapping architecture implemented in Phase 10.1.
+
+### Component Relationship
+
+```
+               DiagnosticWindow ("&Cue Selector...")
+                              │
+                              ▼
+                      AuthoringCueDialog
+                     (Modal Setup Window)
+                              │
+                      [🎯 Select on Screen]
+                              │
+                              ▼
+                    AuthoringOverlayWidget
+             (Interactive Frameless Window on Target Monitor)
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+       Highlight Mode                    Arrow Mode
+   (Click & Drag Rectangle)        (Click Start & Drag Head)
+              │                               │
+              └───────────────┬───────────────┘
+                              │
+                    HUD Fine-Tuning Bar
+               • Real-time Coordinate Spinboxes
+               • DPI Physical Pixel Readouts
+               • Learner-Accurate Accessibility Preview
+                              │
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+       [✔ Confirm / Enter]             [✖ Cancel / Esc]
+              │                               │
+              ▼                               ▼
+    Emit HighlightSpec / ArrowSpec      Emit Cancelled
+    Hide & Close Overlay                Hide & Close Overlay
+    Restore Normal Mouse Interaction    Restore Normal Mouse Interaction
+```
+
+### Architectural Principles
+
+1. **Active Authoring vs. Passive Learner Overlay**:
+   - While `GuidanceOverlayWidget` is strictly click-through (`WindowTransparentForInput`, `WA_TransparentForMouseEvents`, `NoFocus`), `AuthoringOverlayWidget` is an active pointer tool that captures mouse events exclusively on its own canvas surface.
+   - It never clicks, types, focuses, or automates interactions with any underlying desktop applications.
+   - It does not grab, record, capture, or stream screen pixels (`QScreen.grabWindow` is never invoked).
+
+2. **Coordinate Systems & Multi-Monitor Topologies**:
+   - The overlay geometry matches the target display's logical bounds (`DisplayInfo.x, y, width, height`).
+   - Local pointer coordinates inside the widget are mapped to global virtual desktop coordinates using `DisplayInfo.local_to_global(lx, ly)`.
+   - For displays positioned to the left of or above the primary monitor, negative virtual desktop coordinates are properly retained and `allow_negative=True` is assigned to `HighlightSpec` and `ArrowSpec`.
+   - High-DPI scaling conversions (`logical_to_physical`, `physical_to_logical`) calculate exact physical device pixel dimensions via `DisplayInfo.device_pixel_ratio`.
+
+3. **Pixel-Accurate Accessibility Preview**:
+   - The authoring overlay's painting pipeline mirrors `GuidanceOverlayWidget`:
+     - Standard mode: translucent fill, solid accent stroke, rounded label pills.
+     - High-contrast mode: outer dark halo (6px), inner vibrant yellow stroke (3px), non-color shape indicators (`[■]` corner brackets for highlights, start ring `O` and arrowhead `[▶]` for arrows), and scaled font text.
+
+4. **Guaranteed Dismissal & Interaction Safety**:
+   - Pressing `Escape` or clicking `Cancel` triggers `cancel()`, which sets `is_cancelled=True`, emits `cancelled`, and calls `hide()` and `close()`.
+   - `closeEvent()` ensures `hide()` is called and dragging state is cleared, preventing lingering click-blocking windows on the user's desktop.
+
+5. **Target Display Scoping & Limitations**:
+   - The authoring overlay targets one monitor at a time as selected by the author in the monitor dropdown or active display configuration. It does not span across multiple monitors simultaneously.
+   - Coordinate conversion and geometry adaptation are verified across simulated multi-monitor topologies with negative coordinates and scaling, while physical multi-monitor hardware behaviors remain subject to manual verification.

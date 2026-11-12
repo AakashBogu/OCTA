@@ -8,6 +8,16 @@ and a passive Qt visual overlay.
 
 from __future__ import annotations
 
+from octa.intelligence.authoring_overlay import (
+    AuthoringCueDialog,
+    AuthoringMode,
+    AuthoringOverlayWidget,
+    AuthoringResult,
+    logical_to_physical,
+    physical_to_logical,
+    rect_logical_to_physical,
+    rect_physical_to_logical,
+)
 from octa.intelligence.capture import (
     VALID_CAPTURE_SOURCES,
     CapturedImage,
@@ -92,6 +102,10 @@ from octa.intelligence.verifier import (
 
 __all__ = [
     "ArrowSpec",
+    "AuthoringCueDialog",
+    "AuthoringMode",
+    "AuthoringOverlayWidget",
+    "AuthoringResult",
     "CaptureCancelledError",
     "CaptureRegion",
     "CaptureRegionError",
@@ -118,6 +132,7 @@ __all__ = [
     "LLMError",
     "LLMResponse",
     "LLMTransportError",
+    "logical_to_physical",
     "MalformedModelOutputError",
     "MissingCredentialsError",
     "NoRedirectHandler",
@@ -153,6 +168,9 @@ __all__ = [
     "overlay_hint_to_spec",
     "parse_instruction_output",
     "parse_verification_output",
+    "physical_to_logical",
+    "rect_logical_to_physical",
+    "rect_physical_to_logical",
     "redact_sensitive_text",
     "sanitize_endpoint_for_display",
     "validate_llm_endpoint",

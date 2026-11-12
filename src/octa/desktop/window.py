@@ -279,8 +279,11 @@ class DiagnosticWindow(QWidget):
         self._combo_monitor = QComboBox(self)
         self._populate_monitor_combo()
         self._combo_monitor.currentIndexChanged.connect(self._on_monitor_combo_changed)
+        self._btn_cue_selector = QPushButton("&Cue Selector...", self)
+        self._btn_cue_selector.clicked.connect(self._on_cue_selector_clicked)
         monitor_row.addWidget(monitor_label)
         monitor_row.addWidget(self._combo_monitor, stretch=1)
+        monitor_row.addWidget(self._btn_cue_selector)
         tutorial_layout.addLayout(monitor_row)
 
         self._lbl_tutorial_status = QLabel(
@@ -457,6 +460,10 @@ class DiagnosticWindow(QWidget):
         self._combo_monitor.setAccessibleDescription(
             "Select which display monitor is targeted for captures and overlay cues"
         )
+        self._btn_cue_selector.setAccessibleName("Open Visual Cue Authoring Studio")
+        self._btn_cue_selector.setAccessibleDescription(
+            "Visually select or fine-tune highlight and arrow cues on screen"
+        )
 
         self._btn_prev_step.setAccessibleName("Previous Step")
         self._btn_prev_step.setAccessibleDescription("Navigate back to the previous tutorial step")
@@ -519,6 +526,7 @@ class DiagnosticWindow(QWidget):
             self._btn_reset_tutorial,
             self._btn_manage_plugins,
             self._combo_monitor,
+            self._btn_cue_selector,
             self._btn_prev_step,
             self._btn_next_step,
             self._btn_hint,
@@ -546,7 +554,8 @@ class DiagnosticWindow(QWidget):
         self.setTabOrder(self._combo_tutorial, self._btn_reset_tutorial)
         self.setTabOrder(self._btn_reset_tutorial, self._btn_manage_plugins)
         self.setTabOrder(self._btn_manage_plugins, self._combo_monitor)
-        self.setTabOrder(self._combo_monitor, self._btn_prev_step)
+        self.setTabOrder(self._combo_monitor, self._btn_cue_selector)
+        self.setTabOrder(self._btn_cue_selector, self._btn_prev_step)
         self.setTabOrder(self._btn_prev_step, self._btn_next_step)
         self.setTabOrder(self._btn_next_step, self._btn_hint)
         self.setTabOrder(self._btn_hint, self._btn_complete_manual)
@@ -611,6 +620,7 @@ class DiagnosticWindow(QWidget):
             self._btn_voice_cancel,
             self._btn_reset_tutorial,
             self._btn_manage_plugins,
+            self._btn_cue_selector,
             self._btn_prev_step,
             self._btn_next_step,
             self._btn_hint,
@@ -884,6 +894,19 @@ class DiagnosticWindow(QWidget):
     @Slot()
     def _on_manage_plugins_clicked(self) -> None:
         dlg = PluginManagerDialog(self._controller, parent=self)
+        dlg.exec()
+
+    @Slot()
+    def _on_cue_selector_clicked(self) -> None:
+        """Open the Visual Cue Authoring Studio dialog."""
+        from octa.intelligence.authoring_overlay import AuthoringCueDialog
+
+        dlg = AuthoringCueDialog(
+            display_manager=self._controller.display_manager,
+            high_contrast=self._controller.accessibility_high_contrast,
+            text_scale=self._controller.accessibility_text_scale,
+            parent=self,
+        )
         dlg.exec()
 
     @Slot()

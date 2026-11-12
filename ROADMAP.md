@@ -239,9 +239,37 @@
 
 ---
 
+## Phase 10 — Interactive Tutorial Authoring Studio & Visual Region Editor *(in progress)*
+
+### Phase 10.1 — Visual Region & Directional Cue Selector Overlay *(complete)*
+- [x] Interactive overlay widget (`AuthoringOverlayWidget` in `src/octa/intelligence/authoring_overlay.py`) allowing authors to visually define highlights (`HighlightSpec`) and directional arrows (`ArrowSpec`) via click-and-drag
+- [x] Display coordinate conversion integrating `DisplayManager` for DPI scaling, multi-monitor topology, and negative virtual desktop coordinates (`logical_to_physical`, `physical_to_logical`, `rect_logical_to_physical`, `rect_physical_to_logical`)
+- [x] Real-time visual cue preview mode rendering dual-stroke high-contrast outlines and non-color shape indicators matching learner view (`[■]` for highlights, `[▶]` and ring `O` for arrows)
+- [x] Fine-tuning controls HUD with coordinate spinboxes, label input, mode switcher, high contrast toggle, and physical pixel readouts
+- [x] Companion visual cue dialog (`AuthoringCueDialog`) accessible from `DiagnosticWindow` ("&Cue Selector..." button) with full accessibility support
+- [x] Immediate cancellation and dismissal cleanup: pressing `Esc` or clicking `Cancel` closes the overlay instantly and restores desktop interaction without leaving click-intercepting surfaces
+- [x] 11 comprehensive automated tests (`tests/unit/test_authoring_overlay.py`) covering drag selection, arrow creation, negative monitor coords, DPI scaling, fine-tuning, high contrast, cancel/confirm dismissal, and UI integration
+
+### Phase 10.2 — Interactive Step & Tutorial Builder UI (`TutorialAuthoringDialog`) *(planned)*
+- [ ] Dedicated visual authoring interface (`TutorialAuthoringDialog`) accessible from `DiagnosticWindow` or standalone CLI mode
+- [ ] Structured task editor for `TaskDefinition` (title, app name, description, tags, target outcomes)
+- [ ] Step management list: add, remove, reorder, duplicate, and live step preview test (temporarily rendering cues)
+- [ ] Step detail inspector for instructions, progressive hint sequences, expected verification prompts, and guidance specs
+- [ ] In-app schema validator checking against malformed JSON, empty hint chains, and ID collisions with `BUILTIN_TASK_IDS`
+- [ ] Import and export capabilities for raw tutorial JSON definitions with atomic file saving
+
+### Phase 10.3 — Plugin Project Workspace & Integrated Package Wizard *(planned)*
+- [ ] Project workspace manager (`TutorialPluginProject`) managing manifest files (`plugin.json`), tutorial definitions, and safe documentation
+- [ ] Manifest editor for plugin metadata (id, name, version, author, description, tags, tutorial file listings)
+- [ ] Pre-flight project validator detecting forbidden file extensions, unreferenced tutorials, symlinks, or missing required fields
+- [ ] Integrated packaging and signing wizard utilizing Phase 9.1 and Phase 9.2 tooling (`pack_tutorial_package`, `sign_manifest`)
+- [ ] "Test in OCTA" one-click action: builds package, installs into local managed directory, and dynamically reloads catalog for live author testing
+- [ ] Comprehensive unit and integration test suite covering the full authoring, validation, packaging, and testing loop
+
+---
+
 ## Future Ideas *(not scheduled)*
 
-- In-app interactive tutorial authoring and recording assistant (visual step boundary and overlay creator)
 - Localization / multi-language support (i18n / l10n for UI, Godot prompts, and tutorial content)
 - Cloud sync for progress and preferences (deferred: preserve local-first, privacy-safe architecture)
 - Continuous/wake-word voice activation (deferred: preserve strict push-to-talk privacy boundary)

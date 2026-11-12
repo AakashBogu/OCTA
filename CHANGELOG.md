@@ -11,6 +11,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Phase 10.1 — Visual Region & Directional Cue Selector (2026-11-12)**
+  - `src/octa/intelligence/authoring_overlay.py` — Created `AuthoringOverlayWidget` enabling tutorial authors to click-and-drag highlight bounding boxes (`HighlightSpec`) and directional guidance arrows (`ArrowSpec`).
+  - `src/octa/intelligence/authoring_overlay.py` — Implemented coordinate conversion helpers (`logical_to_physical`, `physical_to_logical`, `rect_logical_to_physical`, `rect_physical_to_logical`) integrating multi-monitor DPI scaling and negative virtual desktop coordinates.
+  - `src/octa/intelligence/authoring_overlay.py` — Added floating HUD toolbar with coordinate spinboxes (`X/Y/W/H` or `X1/Y1/X2/Y2`), mode switcher, label input, high contrast toggle, and live physical device pixel readouts.
+  - `src/octa/intelligence/authoring_overlay.py` — Implemented learner-accurate preview rendering matching Phase 8.3 accessibility cues (dual-stroke dark outer halo + inner vibrant yellow stroke, L-shaped corner indicator brackets `[■]`, target ring `O` and arrowhead `[▶]`, and scaled label pills).
+  - `src/octa/intelligence/authoring_overlay.py` — Created `AuthoringCueDialog` modal dialog for monitor selection, on-screen visual selection launch, and coordinate fine-tuning.
+  - `src/octa/intelligence/authoring_overlay.py` — Enforced strict dismissal safety and immediate cleanup on `Escape` or `Cancel`, ensuring no click-intercepting surface remains active after closing.
+  - `src/octa/intelligence/__init__.py` — Exported `AuthoringOverlayWidget`, `AuthoringCueDialog`, `AuthoringMode`, `AuthoringResult`, and coordinate conversion functions.
+  - `src/octa/desktop/window.py` — Added "&Cue Selector..." button to monitor row in `DiagnosticWindow`, wired to `AuthoringCueDialog`, with accessible labeling, focus policy, and dynamic text scaling.
+  - `octa.spec` — Added `octa.intelligence.authoring_overlay` to PyInstaller hidden imports.
+  - `tests/unit/test_authoring_overlay.py` — Added 11 unit and Qt interaction tests covering drag selection, arrow creation, multi-monitor negative coordinates, DPI scaling, fine-tuning spinboxes, high contrast preview, cancel/confirm dismissal, and UI integration.
 - **Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration (2026-11-12)**
   - `src/octa/desktop/plugin_manager_dialog.py` — Created `PluginInstallPreviewDialog` and `PluginManagerDialog`. Implemented pre-flight archive verification modal displaying metadata, descriptions, included tutorials, and trust level badge. Requires explicit acknowledgement checkbox for `SIGNED_UNKNOWN_KEY` and `UNSIGNED_COMMUNITY` packages before enabling the install button. Blocks `INVALID_TAMPERED` packages with critical error dialogs.
   - `src/octa/desktop/plugin_manager_dialog.py` — Implemented table view of installed plugins showing Name, ID, Version, Author, Trust Status, and Tutorial counts, alongside plugin details inspector, install file picker, and uninstall workflow.
