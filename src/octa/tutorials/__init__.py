@@ -69,6 +69,11 @@ from octa.tutorials.plugins import (
     discover_tutorial_plugins,
     load_tutorial_plugin,
 )
+from octa.tutorials.project import (
+    ProjectValidationError,
+    ProjectValidationReport,
+    TutorialPluginProject,
+)
 from octa.tutorials.sound import (
     TutorialSoundPlayer,
     create_completion_speech_cue,
@@ -101,6 +106,8 @@ __all__ = [
     "PluginLoadDiagnostic",
     "PluginManifestError",
     "PluginSecurityError",
+    "ProjectValidationError",
+    "ProjectValidationReport",
     "StepProgressRecord",
     "TUTORIAL_PLUGIN_MANIFEST_FILENAME",
     "TrustStore",
@@ -110,6 +117,7 @@ __all__ = [
     "TutorialFeedback",
     "TutorialPluginError",
     "TutorialPluginManifest",
+    "TutorialPluginProject",
     "TutorialSessionMetrics",
     "TutorialSessionState",
     "TutorialSoundPlayer",

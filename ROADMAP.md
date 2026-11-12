@@ -239,7 +239,7 @@
 
 ---
 
-## Phase 10 — Interactive Tutorial Authoring Studio & Visual Region Editor *(in progress)*
+## Phase 10 — Interactive Tutorial Authoring Studio & Visual Region Editor *(complete)*
 
 ### Phase 10.1 — Visual Region & Directional Cue Selector Overlay *(complete)*
 - [x] Interactive overlay widget (`AuthoringOverlayWidget` in `src/octa/intelligence/authoring_overlay.py`) allowing authors to visually define highlights (`HighlightSpec`) and directional arrows (`ArrowSpec`) via click-and-drag
@@ -260,13 +260,13 @@
 - [x] Safe atomic JSON persistence (`save_task_definition_to_file`, `load_task_definition_from_file`) using volume-local staging (`.tmp_<stem>_<rand>.json`) and `os.replace` to prevent file truncation or corruption
 - [x] 14 comprehensive unit and Qt interaction tests (`tests/unit/test_tutorial_authoring.py`) covering save/load roundtrips, atomic failure preservation, built-in ID collision rejection, step CRUD, cue management, and UI integration
 
-### Phase 10.3 — Plugin Project Workspace & Integrated Package Wizard *(planned)*
-- [ ] Project workspace manager (`TutorialPluginProject`) managing manifest files (`plugin.json`), tutorial definitions, and safe documentation
-- [ ] Manifest editor for plugin metadata (id, name, version, author, description, tags, tutorial file listings)
-- [ ] Pre-flight project validator detecting forbidden file extensions, unreferenced tutorials, symlinks, or missing required fields
-- [ ] Integrated packaging and signing wizard utilizing Phase 9.1 and Phase 9.2 tooling (`pack_tutorial_package`, `sign_manifest`)
-- [ ] "Test in OCTA" one-click action: builds package, installs into local managed directory, and dynamically reloads catalog for live author testing
-- [ ] Comprehensive unit and integration test suite covering the full authoring, validation, packaging, and testing loop
+### Phase 10.3 — Plugin Project Workspace & Integrated Package Wizard *(complete)*
+- [x] Project workspace manager (`TutorialPluginProject` in `src/octa/tutorials/project.py`) managing manifest files (`plugin.json`), tutorial definitions, and safe documentation
+- [x] Manifest editor for plugin metadata (`PluginProjectDialog` in `src/octa/desktop/plugin_project_dialog.py`: ID, name, version, author, description, tutorial file listings)
+- [x] Pre-flight project validator detecting forbidden file extensions, unreferenced tutorials, symlinks, duplicate/colliding task IDs, quotas, or missing required fields (`ProjectValidationReport`)
+- [x] Integrated packaging and signing wizard (`PackageWizardDialog`) utilizing Phase 9.1 and Phase 9.2 tooling (`pack_tutorial_package`, `sign_manifest`), strictly opt-in signing, and zero private key leakage or persistence
+- [x] "Test in OCTA" one-click action: builds package, installs into local managed directory with explicit preview confirmation, and dynamically reloads catalog for live author testing
+- [x] 14 comprehensive unit and Qt interaction tests (`tests/unit/test_plugin_project.py`) covering workspace creation/opening, validation rules, collision prevention, signing cancellation, packaging, preview dialog, and live test installation
 
 ---
 

@@ -931,6 +931,17 @@ class DiagnosticWindow(QWidget):
         dlg.exec()
 
     @Slot()
+    def _on_plugin_project_clicked(self) -> None:
+        """Open the Tutorial Plugin Project Studio dialog."""
+        from octa.desktop.plugin_project_dialog import PluginProjectDialog
+
+        dlg = PluginProjectDialog(
+            controller=self._controller,
+            parent=self,
+        )
+        dlg.exec()
+
+    @Slot()
     def _on_prev_step_clicked(self) -> None:
         try:
             self._controller.previous_tutorial_step()

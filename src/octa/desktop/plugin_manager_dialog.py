@@ -16,7 +16,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -346,6 +346,13 @@ class PluginManagerDialog(QDialog):
         self._btn_uninstall.setEnabled(False)
         self._btn_uninstall.clicked.connect(self._on_uninstall_clicked)
 
+        self._btn_project_studio = QPushButton("&Project Studio...", self)
+        self._btn_project_studio.setAccessibleName("Open Plugin Project Studio")
+        self._btn_project_studio.setAccessibleDescription(
+            "Create, author, validate, and package tutorial plugin projects"
+        )
+        self._btn_project_studio.clicked.connect(self._on_project_studio_clicked)
+
         self._btn_refresh = QPushButton("&Refresh", self)
         self._btn_refresh.setAccessibleName("Refresh Plugins List")
         self._btn_refresh.clicked.connect(self._populate_plugins)
@@ -356,6 +363,7 @@ class PluginManagerDialog(QDialog):
 
         btn_layout.addWidget(self._btn_install)
         btn_layout.addWidget(self._btn_uninstall)
+        btn_layout.addWidget(self._btn_project_studio)
         btn_layout.addWidget(self._btn_refresh)
         btn_layout.addStretch()
         btn_layout.addWidget(self._btn_close)
@@ -365,7 +373,8 @@ class PluginManagerDialog(QDialog):
         # Tab order
         self.setTabOrder(self._table, self._btn_install)
         self.setTabOrder(self._btn_install, self._btn_uninstall)
-        self.setTabOrder(self._btn_uninstall, self._btn_refresh)
+        self.setTabOrder(self._btn_uninstall, self._btn_project_studio)
+        self.setTabOrder(self._btn_project_studio, self._btn_refresh)
         self.setTabOrder(self._btn_refresh, self._btn_close)
 
     def _populate_plugins(self) -> None:
@@ -540,3 +549,12 @@ class PluginManagerDialog(QDialog):
                 "Uninstallation Error",
                 f"An error occurred while uninstalling the plugin:\n\n{exc}",
             )
+
+    @Slot()
+    def _on_project_studio_clicked(self) -> None:
+        """Open the Plugin Project Studio dialog."""
+        from octa.desktop.plugin_project_dialog import PluginProjectDialog
+
+        dlg = PluginProjectDialog(controller=self._controller, parent=self)
+        dlg.exec()
+        self._populate_plugins()

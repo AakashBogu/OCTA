@@ -11,6 +11,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Phase 10.3 — Plugin Project Workspace & Integrated Package Wizard (2026-11-12)**
+  - `src/octa/tutorials/project.py` — Created `TutorialPluginProject`, `ProjectValidationError`, and `ProjectValidationReport`. Implemented project lifecycle: `create()` scaffolded project directories, `open()` workspace loading, atomic manifest updates (`save_manifest`, `update_manifest`), tutorial registration and deregistration (`add_tutorial_file`, `remove_tutorial_reference`), pre-flight security and quota validation (`validate_workspace`), verified `.octapack` bundle packaging (`pack_package`), and confirmed live installation with dynamic catalog reload (`test_install`).
+  - `src/octa/desktop/plugin_project_dialog.py` — Created `PluginProjectDialog`, `NewProjectDialog`, and `PackageWizardDialog`. Implemented workspace overview, manifest editor, tutorial definitions manager, diagnostics runner, packaging wizard with opt-in memory-only Ed25519 signing (never persisted, never bundled in archives, private key secrets sanitized from error messages), and one-click "Test in OCTA" workflow with explicit confirmation preview and dynamic catalog synchronization.
+  - `src/octa/tutorials/__init__.py` — Exported `ProjectValidationError`, `ProjectValidationReport`, and `TutorialPluginProject`.
+  - `src/octa/desktop/__init__.py` — Exported `NewProjectDialog`, `PackageWizardDialog`, and `PluginProjectDialog`.
+  - `src/octa/desktop/plugin_manager_dialog.py` — Added "&Project Studio..." action button opening `PluginProjectDialog`.
+  - `src/octa/desktop/tutorial_authoring_dialog.py` — Added "📁 Plugin &Studio..." toolbar button opening `PluginProjectDialog`.
+  - `src/octa/desktop/window.py` — Added "📁 Plugin &Studio..." action button in `DiagnosticWindow` toolbar row.
+  - `octa.spec` — Added `octa.tutorials.project` and `octa.desktop.plugin_project_dialog` to PyInstaller hidden imports.
+  - `tests/unit/test_plugin_project.py` — Added 14 unit and Qt interaction tests covering workspace creation, manifest roundtrips, duplicate task ID and reserved built-in ID collision rejection, forbidden extensions rejection, quota enforcement, opt-in signing safety, unsigned and signed packaging, test installation with catalog reload, and companion dialog button integration.
 - **Phase 10.2 — Interactive Step & Tutorial Builder UI (2026-11-12)**
   - `src/octa/desktop/tutorial_authoring_dialog.py` — Created `TutorialAuthoringDialog` providing a dedicated visual editor for authoring and fine-tuning tutorial definitions (`TaskDefinition`) and sequential steps (`TaskStep`). Includes top action toolbar (New, Open, Save, Save As, Validate), metadata editor (`task_id`, `version`, `title`, `application`, `goal`), ordered step sequence list with Add, Duplicate, Delete, Move Up, and Move Down controls, and step detail inspector for instructions, hints, outcome criteria, and visual cues.
   - `src/octa/intelligence/tasks.py` — Added `TaskStepDefinition` schema alias, `save_task_definition_to_file` with schema validation and safe atomic replacement (`.tmp_<stem>_<rand>.json` + `os.replace`), and `load_task_definition_from_file` with strict UTF-8 decoding, JSON parsing, and zero code execution.

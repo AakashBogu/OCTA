@@ -1096,3 +1096,53 @@ Implemented and verified Phase 10.2 — Interactive Step & Tutorial Builder UI f
 ### Next Step
 - Review and stage Phase 10.2 files when approved.
 - Proceed to Phase 10.3: Plugin Project Workspace & Integrated Package Wizard.
+
+---
+
+## Task: Phase 10.3 — Plugin Project Workspace & Integrated Package Wizard
+
+**Date:** 2026-11-12
+**Phase:** 10.3
+
+### Summary
+Implemented and verified Phase 10.3 — Plugin Project Workspace & Integrated Package Wizard for OCTA:
+1. Created `src/octa/tutorials/project.py` implementing `TutorialPluginProject`, `ProjectValidationError`, and `ProjectValidationReport`.
+2. Built local project workspace management: `create()` scaffolded project folders, `open()` workspace loading, atomic manifest updates (`save_manifest`, `update_manifest`), tutorial registration and deregistration (`add_tutorial_file`, `remove_tutorial_reference`), pre-flight validation (`validate_workspace`), verified `.octapack` bundle packaging (`pack_package`), and confirmed live installation with dynamic catalog reload (`test_install`).
+3. Created `src/octa/desktop/plugin_project_dialog.py` implementing `PluginProjectDialog`, `NewProjectDialog`, and `PackageWizardDialog`.
+4. Provided manifest metadata editing (ID, Name, Version, Author, Description), tutorial definitions management with "Open in Builder..." integration, and in-app workspace validation diagnostics.
+5. Implemented integrated packaging wizard with strictly opt-in Ed25519 signing (disabled by default), memory-only private key handling, private key secret sanitization from error dialogs, and zero key persistence or bundling.
+6. Implemented live "Test in OCTA" workflow: building temporary package bundle, verifying in-memory via `verify_tutorial_package`, presenting `PluginInstallPreviewDialog` for explicit confirmation, safely installing into OCTA's managed plugin directory with overwrite protection, and dynamically reloading the live catalog without restarting.
+7. Connected "📁 Plugin &Studio..." buttons across `DiagnosticWindow`, `PluginManagerDialog`, and `TutorialAuthoringDialog` toolbar.
+8. Exported `ProjectValidationError`, `ProjectValidationReport`, and `TutorialPluginProject` from `src/octa/tutorials/__init__.py`. Exported `NewProjectDialog`, `PackageWizardDialog`, and `PluginProjectDialog` from `src/octa/desktop/__init__.py`. Added hidden imports to `octa.spec`.
+9. Added 14 automated unit and Qt interaction tests in `tests/unit/test_plugin_project.py` covering workspace creation/opening, manifest updates, duplicate task ID and reserved built-in ID collision rejection, forbidden extensions rejection, quota enforcement, opt-in signing safety, unsigned and signed packaging, test installation with catalog reload, and companion dialog button integration.
+
+### Files Changed
+- `src/octa/tutorials/project.py` — Created `TutorialPluginProject`, `ProjectValidationError`, and `ProjectValidationReport`.
+- `src/octa/desktop/plugin_project_dialog.py` — Created `PluginProjectDialog`, `NewProjectDialog`, and `PackageWizardDialog`.
+- `src/octa/tutorials/__init__.py` — Exported project models and exceptions.
+- `src/octa/desktop/__init__.py` — Exported project dialogs.
+- `src/octa/desktop/plugin_manager_dialog.py` — Added "&Project Studio..." button and slot.
+- `src/octa/desktop/tutorial_authoring_dialog.py` — Added "📁 Plugin &Studio..." toolbar button and slot.
+- `src/octa/desktop/window.py` — Added "📁 Plugin &Studio..." button and slot to `DiagnosticWindow`.
+- `octa.spec` — Added hidden imports for `octa.tutorials.project` and `octa.desktop.plugin_project_dialog`.
+- `tests/unit/test_plugin_project.py` — Created 14 unit and Qt interaction tests.
+- `ROADMAP.md` — Marked Phase 10.3 complete.
+- `README.md` — Updated status line, What Works Now with section 17, roadmap table, and test counts.
+- `CHANGELOG.md` — Added Phase 10.3 entry under [Unreleased].
+- `docs/architecture.md` — Documented Phase 10.3 architecture.
+- `docs/PROGRESS.md` — Appended this progress entry.
+
+### Validation
+- **Plugin Project Test Suite**: Ran `pytest tests/unit/test_plugin_project.py -v`: 14 passed.
+- **Focused Suite**: Ran `pytest tests/unit/test_plugin_project.py tests/unit/test_plugin_manager.py tests/unit/test_tutorial_authoring.py tests/unit/test_tutorial_packaging.py tests/unit/test_desktop_window.py -v`: 75 passed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 425 passed, 1 skipped (Windows unprivileged symlinks).
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 87 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 10.3 files when approved.
+- Plan next milestones (e.g. Phase 11).

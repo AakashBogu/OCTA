@@ -1,6 +1,6 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), Phase 10.1 (Visual region & directional cue selector), and Phase 10.2 (Interactive step & tutorial builder UI) are implemented and verified.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), Phase 10.1 (Visual region & directional cue selector), Phase 10.2 (Interactive step & tutorial builder UI), and Phase 10.3 (Plugin project workspace & integrated package wizard) are implemented and verified.
 >
 > **Last updated:** 2026-11-12
 
@@ -1340,3 +1340,76 @@ In-App Validation (`validate_current`)               Atomic File Operations
    - `save_task_definition_to_file` stages data into a temporary file (`.tmp_<stem>_<rand>.json`) in the same directory as the target destination.
    - Atomic replacement is performed via `os.replace`, ensuring failed serializations or disk write interruptions never truncate, corrupt, or zero out existing tutorial files.
    - Loading (`load_task_definition_from_file`) strictly uses standard library `json.loads` without evaluating Python code or accepting arbitrary executable scripts.
+
+---
+
+## Phase 10.3 — Implemented Plugin Project Workspace & Package Wizard Architecture
+
+Phase 10.3 introduces a project-centric authoring workspace model (`TutorialPluginProject`) and an integrated packaging wizard UI (`PluginProjectDialog`, `PackageWizardDialog`), unifying tutorial authoring with Phase 9.1/9.2 secure packaging and Phase 9.3 desktop installation.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Plugin Project Workspace                        │
+│                     (`TutorialPluginProject`)                          │
+│                                                                        │
+│   <project_dir>/                                                       │
+│     ├── plugin.json         (Manifest: id, name, version, tutorials)   │
+│     ├── README.md           (Documentation asset)                      │
+│     └── tutorials/          (Task definitions)                         │
+│           ├── step_one.json                                            │
+│           └── step_two.json                                            │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+               ┌───────────────────┴───────────────────┐
+               ▼                                       ▼
+┌─────────────────────────────┐         ┌─────────────────────────────┐
+│  Workspace Diagnostics &    │         │  Interactive Studio Dialog  │
+│  Pre-Flight Validation      │         │  (`PluginProjectDialog`)    │
+│  (`validate_workspace`)     │         │                             │
+│                             │         │  • Manifest Metadata Editor │
+│  • Schema verification      │◄────────┤  • Tutorial Definitions List│
+│  • Forbidden extensions     │         │  • "Open in Builder..."     │
+│  • Symlink rejection        │         │  • Diagnostics Report Box   │
+│  • Path traversal checks    │         │  • "Package Bundle..."      │
+│  • Quota bounds enforcement │         │  • "Test in OCTA" Button    │
+│  • Task ID collision guards │         └──────────────┬──────────────┘
+└──────────────┬──────────────┘                        │
+               │                                       │
+               ▼                                       ▼
+┌─────────────────────────────┐         ┌─────────────────────────────┐
+│  Integrated Package Wizard  │         │  Live "Test in OCTA" Flow   │
+│  (`PackageWizardDialog`)    │         │  (`test_install`)           │
+│                             │         │                             │
+│  • Opt-in digital signing   │         │  • Temp bundle generation   │
+│  • Memory-only private key  │         │  • Pre-flight verification  │
+│  • Key secret sanitization  │         │  • `PluginInstallPreview`   │
+│  • Phase 9.1/9.2 packager   │         │  • Atomic installation      │
+│  • Verified .octapack build │         │  • Dynamic catalog reload   │
+└─────────────────────────────┘         └─────────────────────────────┘
+```
+
+### Architectural Principles & Security Invariants
+
+1. **Workspace Boundary & File System Containment**:
+   - `TutorialPluginProject` manages a dedicated project folder structure containing `plugin.json`, documentation (`README.md`), and tutorial task definition files in `tutorials/`.
+   - Manifest updates (`save_manifest`, `update_manifest`) write to `.tmp_plugin_<rand>.json` on the same filesystem volume before performing an atomic `os.replace`, guaranteeing manifest integrity against write interruptions.
+   - All file operations enforce path containment within the workspace directory, strictly rejecting directory traversal attempts (`..`), absolute paths, and Windows drive roots.
+
+2. **Pre-Flight Workspace Diagnostics & Quota Validation**:
+   - `validate_workspace` returns a structured `ProjectValidationReport` evaluating four distinct tiers of project health:
+     - **Schema Integrity**: Verifies manifest syntax against `TutorialPluginManifest` rules and parses each referenced tutorial file with `load_task_definition_from_file`.
+     - **Code Execution & Symlink Prevention**: Forbids all executable and script extensions (`.exe`, `.bat`, `.cmd`, `.ps1`, `.py`, `.sh`, `.vbs`, etc.) and rejects symlinks anywhere within the workspace tree.
+     - **Quota Bounds**: Enforces maximum archive limits ($\le 100$ files, $\le 25$ MB expanded size, $\le 5$ MB per file).
+     - **Task ID Collision Guards**: Detects duplicate task IDs within the workspace and strictly forbids collisions with reserved built-in tutorials (`BUILTIN_TASK_IDS`).
+
+3. **Opt-In Digital Signing & Zero Secret Leakage**:
+   - Packaging supports both unsigned community packages and cryptographically signed archives via Ed25519.
+   - Digital signing is strictly opt-in and disabled by default. Private keys are never persisted to disk, never committed to project files, never included in package archives, and never logged.
+   - Private keys are parsed and held strictly in memory during the packaging operation.
+   - Exception handlers across `project.py` and `plugin_project_dialog.py` sanitize private key error messages to ensure raw key bytes or sensitive cryptographic traces are never exposed in user-facing dialogs or log outputs.
+
+4. **Live "Test in OCTA" Installation with Safe Preview**:
+   - The "Test in OCTA" workflow enables authors to test their created tutorials directly within the host application.
+   - A verified `.octapack` bundle is built in a secure temporary directory (`tempfile.mkdtemp`), verified in-memory using `verify_tutorial_package`, and presented via `PluginInstallPreviewDialog` for explicit author confirmation.
+   - Installation utilizes Phase 9.3's staged extraction and atomic replacement (`install_tutorial_package`) into the managed plugin directory, protecting against silent overwrites.
+   - On completion, `DesktopController.reload_tutorial_plugins` is invoked to immediately refresh the live tutorial catalog and UI selector dropdown without restarting OCTA.

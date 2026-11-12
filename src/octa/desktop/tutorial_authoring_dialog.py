@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -138,11 +138,16 @@ class TutorialAuthoringDialog(QDialog):
         self._btn_validate.setAccessibleName("Validate Tutorial Schema")
         self._btn_validate.clicked.connect(self._on_validate_clicked)
 
+        self._btn_project = QPushButton("📁 Plugin &Studio...", self)
+        self._btn_project.setAccessibleName("Open Plugin Project Studio")
+        self._btn_project.clicked.connect(self._on_project_studio_clicked)
+
         toolbar.addWidget(self._btn_new)
         toolbar.addWidget(self._btn_open)
         toolbar.addWidget(self._btn_save)
         toolbar.addWidget(self._btn_save_as)
         toolbar.addWidget(self._btn_validate)
+        toolbar.addWidget(self._btn_project)
         toolbar.addStretch()
 
         self._lbl_filepath = QLabel("Unsaved Tutorial", self)
@@ -962,6 +967,14 @@ class TutorialAuthoringDialog(QDialog):
         else:
             QMessageBox.warning(self, "Tutorial Schema Invalid", f"Validation Failed:\n\n{msg}")
             self._lbl_status.setText(f"Validation failed: {msg}")
+
+    @Slot()
+    def _on_project_studio_clicked(self) -> None:
+        """Open the Plugin Project Studio dialog."""
+        from octa.desktop.plugin_project_dialog import PluginProjectDialog
+
+        dlg = PluginProjectDialog(controller=self._controller, parent=self)
+        dlg.exec()
 
     def _mark_dirty(self) -> None:
         self._is_dirty = True
