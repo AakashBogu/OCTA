@@ -11,6 +11,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration (2026-11-12)**
+  - `src/octa/desktop/plugin_manager_dialog.py` — Created `PluginInstallPreviewDialog` and `PluginManagerDialog`. Implemented pre-flight archive verification modal displaying metadata, descriptions, included tutorials, and trust level badge. Requires explicit acknowledgement checkbox for `SIGNED_UNKNOWN_KEY` and `UNSIGNED_COMMUNITY` packages before enabling the install button. Blocks `INVALID_TAMPERED` packages with critical error dialogs.
+  - `src/octa/desktop/plugin_manager_dialog.py` — Implemented table view of installed plugins showing Name, ID, Version, Author, Trust Status, and Tutorial counts, alongside plugin details inspector, install file picker, and uninstall workflow.
+  - `src/octa/tutorials/packaging.py` — Added `InstalledPluginInfo` dataclass representing installed plugin state and trust status.
+  - `src/octa/tutorials/packaging.py` — Implemented `extract_tutorial_package` and `install_tutorial_package` with pre-flight verification, quota checks, path traversal guards, forbidden extension rejection, temporary staging directories (`.staging_<id>_<rand>`) on the same volume, atomic replacement via `os.replace`, rollback/cleanup on error, and overwrite protection.
+  - `src/octa/tutorials/packaging.py` — Implemented `uninstall_tutorial_plugin` with path traversal guards, symlink rejection, and `plugin.json` identity verification before deletion.
+  - `src/octa/tutorials/packaging.py` — Implemented `get_installed_plugins_info` scanning the managed plugins directory and validating cryptographic provenance without extracting or modifying archives.
+  - `src/octa/tutorials/__init__.py` — Exported `InstalledPluginInfo`, `extract_tutorial_package`, `get_installed_plugins_info`, `install_tutorial_package`, and `uninstall_tutorial_plugin`.
+  - `src/octa/desktop/controller.py` — Added `tutorial_plugin_dir` property, `get_installed_plugins`, `install_tutorial_package`, and `uninstall_tutorial_plugin` integrating packaging operations with desktop lifecycle and dynamic catalog reload.
+  - `src/octa/desktop/window.py` — Added "&Plugins..." action button to tutorial selector row in `DiagnosticWindow`, wired to `PluginManagerDialog`, with Qt accessible labels, focus policy, and dynamic text scaling.
+  - `octa.spec` — Added `octa.desktop.plugin_manager_dialog` to PyInstaller hidden imports.
+  - `tests/unit/test_plugin_manager.py` — Added 12 unit and integration tests covering extraction, verification, collision prevention, overwrite protection, uninstall safety guards, trust acknowledgement enforcement, full installation/uninstallation workflows in the dialog, and diagnostic window button integration.
 - **Phase 9.2 — Cryptographic Integrity & Provenance Trust Model (2026-11-12)**
   - `pyproject.toml` — Added `cryptography>=42.0.0` dependency for standard Ed25519 digital signature signing and verification.
   - `octa.spec` — Added `cryptography` to PyInstaller hidden imports for frozen Windows distributions.

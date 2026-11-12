@@ -21,6 +21,8 @@ import hashlib
 import json
 import logging
 import os
+import re
+import shutil
 import stat
 import sys
 import tempfile
@@ -33,12 +35,15 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from octa.intelligence.tasks import TaskDefinition
+from octa.tutorials.catalog import BUILTIN_TASK_IDS
 from octa.tutorials.plugins import (
     TUTORIAL_PLUGIN_MANIFEST_FILENAME,
+    PluginCollisionError,
     PluginManifestError,
     PluginSecurityError,
     TutorialPluginError,
     TutorialPluginManifest,
+    load_tutorial_plugin,
 )
 
 logger = logging.getLogger(__name__)
@@ -478,6 +483,37 @@ class PackageVerificationResult:
     def is_unsigned_community(self) -> bool:
         """True when package is valid and completely unsigned."""
         return self.is_valid and self.trust_level == PackageTrustLevel.UNSIGNED_COMMUNITY
+
+
+@dataclass(frozen=True)
+class InstalledPluginInfo:
+    """Metadata describing an installed tutorial plugin in the managed directory."""
+
+    plugin_id: str
+    name: str
+    version: str
+    author: str
+    description: str
+    install_dir: Path
+    trust_level: PackageTrustLevel
+    signer_id: str = ""
+    signer_name: str = ""
+    tutorial_count: int = 0
+    tutorial_titles: tuple[str, ...] = ()
+    file_count: int = 0
+    is_managed: bool = True
+
+    @property
+    def is_trusted_signed(self) -> bool:
+        return self.trust_level == PackageTrustLevel.TRUSTED_SIGNED
+
+    @property
+    def is_signed_unknown_key(self) -> bool:
+        return self.trust_level == PackageTrustLevel.SIGNED_UNKNOWN_KEY
+
+    @property
+    def is_unsigned_community(self) -> bool:
+        return self.trust_level == PackageTrustLevel.UNSIGNED_COMMUNITY
 
 
 # ──────────────────────────────────────────
@@ -1182,3 +1218,383 @@ def run_verify_cli(args: argparse.Namespace) -> int:
             print(f"    - {entry}")
 
     return 0
+
+
+# ──────────────────────────────────────────
+# Package Extraction & Managed Installation (Phase 9.3)
+# ──────────────────────────────────────────
+
+
+def extract_tutorial_package(
+    package_path: Path | str,
+    destination_dir: Path | str,
+    *,
+    overwrite: bool = False,
+    trust_store: TrustStore | None = None,
+) -> InstalledPluginInfo:
+    """Safely extract a verified tutorial package into a target directory.
+
+    Enforces all security invariants:
+    - Verifies package integrity, asset digests, and trust level prior to extraction.
+    - Rejects invalid or tampered packages immediately.
+    - Enforces Zip Slip prevention and relative containment.
+    - Enforces security quotas (file count, single file size, expanded size, ratio).
+    - Forbids all executable/script extensions and symlinks.
+    - Uses temporary staging directory with atomic placement.
+    - Checks collision with built-in task IDs.
+
+    Args:
+        package_path: Path to the .octapack archive.
+        destination_dir: Target directory where the plugin folder will be extracted.
+        overwrite: If True, replaces existing plugin directory; if False, raises FileExistsError.
+        trust_store: Optional TrustStore for signature verification.
+
+    Returns:
+        InstalledPluginInfo describing the extracted plugin.
+    """
+    pkg_file = Path(package_path).resolve()
+    dest_root = Path(destination_dir).resolve()
+
+    # Pre-flight inspection & cryptographic verification
+    verify_result = verify_tutorial_package(
+        pkg_file,
+        trust_store=trust_store,
+        raise_on_error=True,
+    )
+
+    if (
+        not verify_result.is_valid
+        or verify_result.trust_level == PackageTrustLevel.INVALID_TAMPERED
+    ):
+        err_msg = "; ".join(verify_result.errors) or "Package failed verification."
+        raise PackageIntegrityError(f"Cannot extract invalid or tampered package: {err_msg}")
+
+    manifest = verify_result.manifest
+    if manifest is None:
+        raise PackageFormatError("Package is missing a valid plugin.json manifest.")
+
+    plugin_id = manifest.plugin_id
+
+    # Check collision with reserved built-in task IDs
+    for t_rel in manifest.tutorial_files:
+        clean_rel = t_rel.strip().replace("\\", "/")
+        if clean_rel in BUILTIN_TASK_IDS:
+            raise PluginCollisionError(
+                f"Package contains tutorial referencing reserved task_id '{clean_rel}'."
+            )
+
+    dest_root.mkdir(parents=True, exist_ok=True)
+    final_dir = (dest_root / plugin_id).resolve()
+
+    if not final_dir.is_relative_to(dest_root) or final_dir == dest_root:
+        raise PackageSecurityError(f"Plugin destination '{final_dir}' escapes '{dest_root}'.")
+
+    if final_dir.is_symlink():
+        raise PackageSecurityError(f"Destination '{final_dir}' already exists as a symlink.")
+
+    if final_dir.exists() and not overwrite:
+        raise FileExistsError(
+            f"Plugin '{plugin_id}' already exists at {final_dir}. Use overwrite=True to replace."
+        )
+
+    staging_dir = Path(tempfile.mkdtemp(prefix=f".staging_{plugin_id}_", dir=dest_root))
+    extracted_count = 0
+    extracted_bytes = 0
+
+    try:
+        with zipfile.ZipFile(pkg_file, "r") as zf:
+            infolist = zf.infolist()
+
+            if len(infolist) > MAX_PACKAGE_FILE_COUNT:
+                raise PackageQuotaError(
+                    f"Archive entry count ({len(infolist)}) exceeds "
+                    f"limit ({MAX_PACKAGE_FILE_COUNT})."
+                )
+
+            for zinfo in infolist:
+                entry_name = zinfo.filename
+                _validate_entry_name(entry_name)
+
+                clean_name = entry_name.strip().replace("\\", "/")
+                target_path = (staging_dir / clean_name).resolve()
+
+                if not target_path.is_relative_to(staging_dir) or target_path == staging_dir:
+                    raise PackageSecurityError(
+                        f"Zip entry '{entry_name}' escapes staging directory."
+                    )
+
+                if zinfo.is_dir():
+                    target_path.mkdir(parents=True, exist_ok=True)
+                    continue
+
+                ext = target_path.suffix.lower()
+                if ext in FORBIDDEN_EXTENSIONS:
+                    raise PackageSecurityError(
+                        f"Forbidden executable or script extension in package: '{ext}'."
+                    )
+
+                mode = (zinfo.external_attr >> 16) & 0xFFFF
+                if mode != 0:
+                    if stat.S_ISLNK(mode):
+                        raise PackageSecurityError(
+                            f"Symlinks are forbidden in package archive: '{entry_name}'."
+                        )
+                    if mode & 0o111:
+                        raise PackageSecurityError(
+                            f"Executable permissions are forbidden: '{entry_name}'."
+                        )
+
+                sz = zinfo.file_size
+                if sz > MAX_PACKAGE_FILE_BYTES:
+                    raise PackageQuotaError(
+                        f"File '{entry_name}' ({sz} bytes) exceeds maximum file limit "
+                        f"({MAX_PACKAGE_FILE_BYTES} bytes)."
+                    )
+
+                extracted_count += 1
+                if extracted_count > MAX_PACKAGE_FILE_COUNT:
+                    raise PackageQuotaError("Archive file count exceeds quota during extraction.")
+
+                extracted_bytes += sz
+                if extracted_bytes > MAX_PACKAGE_EXPANDED_BYTES:
+                    raise PackageQuotaError(
+                        f"Expanded archive size ({extracted_bytes} bytes) exceeds limit "
+                        f"({MAX_PACKAGE_EXPANDED_BYTES} bytes)."
+                    )
+
+                if zinfo.compress_size > 0:
+                    ratio = sz / zinfo.compress_size
+                    if ratio > MAX_COMPRESSION_RATIO:
+                        raise PackageQuotaError(
+                            f"Entry '{entry_name}' compression ratio ({ratio:.1f}:1) "
+                            f"exceeds limit ({MAX_COMPRESSION_RATIO}:1)."
+                        )
+
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                data = zf.read(zinfo)
+                target_path.write_bytes(data)
+
+                # Set non-executable permissions
+                try:
+                    target_path.chmod(0o644)
+                except OSError:
+                    pass
+
+        # Validate that the extracted staging directory loads cleanly
+        loaded_plugin, diags = load_tutorial_plugin(staging_dir, reserved_task_ids=BUILTIN_TASK_IDS)
+        for diag in diags:
+            if diag.error_code == "ID_COLLISION":
+                raise PluginCollisionError(diag.message)
+
+        if loaded_plugin is None:
+            diag_errs = "; ".join(d.message for d in diags) or "Unknown plugin error."
+            raise PackageFormatError(f"Extracted plugin failed validation: {diag_errs}")
+
+        # Check tutorial task_ids against built-in reserved IDs
+        for task in loaded_plugin.tutorials:
+            if task.task_id in BUILTIN_TASK_IDS:
+                raise PluginCollisionError(
+                    f"Plugin tutorial ID '{task.task_id}' collides with a "
+                    "reserved built-in tutorial."
+                )
+
+        # Atomic placement at final_dir
+        backup_dir: Path | None = None
+        if final_dir.exists():
+            backup_dir = Path(tempfile.mkdtemp(prefix=f".backup_{plugin_id}_", dir=dest_root))
+            shutil.rmtree(backup_dir, ignore_errors=True)
+            os.replace(str(final_dir), str(backup_dir))
+
+        try:
+            os.replace(str(staging_dir), str(final_dir))
+            if backup_dir and backup_dir.exists():
+                shutil.rmtree(backup_dir, ignore_errors=True)
+        except Exception as exc:
+            if backup_dir and backup_dir.exists():
+                if final_dir.exists():
+                    shutil.rmtree(final_dir, ignore_errors=True)
+                os.replace(str(backup_dir), str(final_dir))
+            raise exc
+
+        return InstalledPluginInfo(
+            plugin_id=plugin_id,
+            name=manifest.name,
+            version=manifest.version,
+            author=manifest.author,
+            description=manifest.description,
+            install_dir=final_dir,
+            trust_level=verify_result.trust_level,
+            signer_id=verify_result.signer_id,
+            signer_name=verify_result.signer_name,
+            tutorial_count=len(loaded_plugin.tutorials),
+            tutorial_titles=tuple(t.title for t in loaded_plugin.tutorials),
+            file_count=extracted_count,
+            is_managed=True,
+        )
+
+    finally:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir, ignore_errors=True)
+
+
+def install_tutorial_package(
+    package_path: Path | str,
+    managed_plugins_dir: Path | str,
+    *,
+    overwrite: bool = False,
+    trust_store: TrustStore | None = None,
+) -> InstalledPluginInfo:
+    """Install a verified tutorial package into the dedicated managed plugins directory.
+
+    Args:
+        package_path: Path to the .octapack archive.
+        managed_plugins_dir: Root directory for installed plugins.
+        overwrite: Whether to overwrite an already-installed plugin of the same ID.
+        trust_store: Optional trust store to evaluate digital signatures.
+
+    Returns:
+        InstalledPluginInfo for the newly installed plugin.
+    """
+    return extract_tutorial_package(
+        package_path=package_path,
+        destination_dir=managed_plugins_dir,
+        overwrite=overwrite,
+        trust_store=trust_store,
+    )
+
+
+def uninstall_tutorial_plugin(
+    plugin_id: str,
+    managed_plugins_dir: Path | str,
+) -> bool:
+    """Safely uninstall a tutorial plugin from the managed plugins directory.
+
+    Safety checks:
+    - plugin_id cannot contain path separators or traversal parts ('..').
+    - target directory must be strictly inside managed_plugins_dir.
+    - target directory must not be a symlink.
+    - target directory must contain a valid plugin.json whose 'id' matches plugin_id.
+    - refuses to delete arbitrary user directories.
+
+    Args:
+        plugin_id: Identifier of the plugin to remove.
+        managed_plugins_dir: Path to the managed plugins directory.
+
+    Returns:
+        True if plugin was successfully uninstalled, False if not found.
+    """
+    if not isinstance(plugin_id, str) or not plugin_id.strip():
+        raise ValueError("plugin_id must be a non-empty string.")
+
+    clean_id = plugin_id.strip()
+    if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$", clean_id):
+        raise ValueError(f"Invalid plugin_id format: '{plugin_id}'.")
+
+    root = Path(managed_plugins_dir).resolve()
+    if not root.exists() or not root.is_dir():
+        return False
+
+    target_dir = (root / clean_id).resolve()
+
+    if not target_dir.is_relative_to(root) or target_dir == root:
+        raise PackageSecurityError(
+            f"Uninstallation target '{target_dir}' escapes managed root '{root}'."
+        )
+
+    if target_dir.is_symlink():
+        raise PackageSecurityError(f"Refusing to delete symlink at '{target_dir}'.")
+
+    if not target_dir.exists() or not target_dir.is_dir():
+        return False
+
+    # Verify that target_dir is genuinely a tutorial plugin matching clean_id
+    manifest_file = target_dir / TUTORIAL_PLUGIN_MANIFEST_FILENAME
+    if not manifest_file.is_file():
+        raise PackageSecurityError(
+            f"Directory '{target_dir}' does not contain '{TUTORIAL_PLUGIN_MANIFEST_FILENAME}' "
+            "and cannot be uninstalled as a tutorial plugin."
+        )
+
+    try:
+        manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
+        actual_id = str(manifest_data.get("id", "")).strip()
+        if actual_id != clean_id:
+            raise PackageSecurityError(
+                f"Manifest ID '{actual_id}' in '{manifest_file}' does not match "
+                f"uninstallation target '{clean_id}'."
+            )
+    except Exception as exc:
+        raise PackageSecurityError(
+            f"Failed to verify plugin manifest before uninstallation: {exc}"
+        ) from exc
+
+    shutil.rmtree(target_dir)
+    return True
+
+
+def get_installed_plugins_info(
+    managed_plugins_dir: Path | str | None,
+    trust_store: TrustStore | None = None,
+) -> tuple[InstalledPluginInfo, ...]:
+    """Inspect and return metadata for all installed plugins in the managed directory."""
+    if managed_plugins_dir is None:
+        return ()
+
+    root = Path(managed_plugins_dir).resolve()
+    if not root.exists() or not root.is_dir():
+        return ()
+
+    active_store = trust_store or TrustStore.default()
+    installed: list[InstalledPluginInfo] = []
+
+    try:
+        entries = sorted(root.iterdir(), key=lambda p: p.name.lower())
+    except OSError:
+        return ()
+
+    for entry in entries:
+        if entry.is_dir() and not entry.name.startswith("."):
+            manifest_file = entry / TUTORIAL_PLUGIN_MANIFEST_FILENAME
+            if manifest_file.is_file():
+                try:
+                    manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
+                    manifest = TutorialPluginManifest.from_dict(manifest_data)
+                    trust_level, signer_id, signer_name = verify_manifest_signature(
+                        manifest_data,
+                        trust_store=active_store,
+                    )
+                    loaded_plugin, _ = load_tutorial_plugin(
+                        entry, reserved_task_ids=BUILTIN_TASK_IDS
+                    )
+                    tut_count = (
+                        len(loaded_plugin.tutorials)
+                        if loaded_plugin
+                        else len(manifest.tutorial_files)
+                    )
+                    tut_titles = (
+                        tuple(t.title for t in loaded_plugin.tutorials) if loaded_plugin else ()
+                    )
+                    file_count = sum(1 for p in entry.rglob("*") if p.is_file())
+
+                    installed.append(
+                        InstalledPluginInfo(
+                            plugin_id=manifest.plugin_id,
+                            name=manifest.name,
+                            version=manifest.version,
+                            author=manifest.author,
+                            description=manifest.description,
+                            install_dir=entry,
+                            trust_level=trust_level,
+                            signer_id=signer_id,
+                            signer_name=signer_name,
+                            tutorial_count=tut_count,
+                            tutorial_titles=tut_titles,
+                            file_count=file_count,
+                            is_managed=True,
+                        )
+                    )
+                except Exception:
+                    # Ignore or skip corrupted plugins in discovery
+                    continue
+
+    return tuple(installed)

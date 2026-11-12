@@ -951,3 +951,52 @@ Implemented and verified Phase 9.2 — Cryptographic Integrity & Provenance Trus
 ### Next Step
 - Review and stage Phase 9.2 files when approved.
 - Proceed to Phase 9.3: Desktop Plugin Manager UI & Dynamic Catalog Integration.
+
+---
+
+## Task: Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration
+
+**Date:** 2026-11-12
+**Phase:** 9.3
+
+### Summary
+Implemented and verified Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration for OCTA:
+1. Created `src/octa/desktop/plugin_manager_dialog.py` implementing `PluginManagerDialog` and `PluginInstallPreviewDialog`.
+2. Built pre-flight package verification and confirmation modal (`PluginInstallPreviewDialog`) showing metadata, description, included tutorial titles, and security/provenance badges.
+3. Implemented user acknowledgement guard: packages signed with unknown keys (`SIGNED_UNKNOWN_KEY`) or unsigned packages (`UNSIGNED_COMMUNITY`) require checking an explicit acknowledgement checkbox before the install button is enabled. Invalid or tampered packages (`INVALID_TAMPERED`) are completely blocked.
+4. Implemented `InstalledPluginInfo` dataclass and extraction helpers in `src/octa/tutorials/packaging.py`: `extract_tutorial_package`, `install_tutorial_package`, `uninstall_tutorial_plugin`, and `get_installed_plugins_info`.
+5. Hardened extraction and uninstallation: enforced quota checks, Zip Slip path traversal defenses, forbidden extension rejection, temporary staging directories (`.staging_<id>_<rand>`) on the same volume, atomic replacement via `os.replace`, backup reversal on overwrite failure, collision checks with reserved built-in tutorial IDs (`BUILTIN_TASK_IDS`), and symlink/traversal guards during uninstallation.
+6. Added `tutorial_plugin_dir` property, `get_installed_plugins`, `install_tutorial_package`, and `uninstall_tutorial_plugin` methods to `DesktopController` in `src/octa/desktop/controller.py`.
+7. Added "&Plugins..." action button to `DiagnosticWindow` in `src/octa/desktop/window.py` with accessible Qt labeling, focus policy, dynamic UI text scaling, and seamless catalog synchronization without restarting the application.
+8. Updated `octa.spec` to include `octa.desktop.plugin_manager_dialog` in PyInstaller hidden imports.
+9. Added 12 comprehensive unit and integration tests in `tests/unit/test_plugin_manager.py` covering extraction, tampered rejection, built-in ID collision, overwrite protection, uninstall safety, acknowledgement enforcement, and dialog workflows.
+
+### Files Changed
+- `octa.spec` — Added `octa.desktop.plugin_manager_dialog` to hidden imports.
+- `src/octa/tutorials/packaging.py` — Added `InstalledPluginInfo`, `extract_tutorial_package`, `install_tutorial_package`, `uninstall_tutorial_plugin`, and `get_installed_plugins_info`.
+- `src/octa/tutorials/__init__.py` — Exported packaging helpers and `InstalledPluginInfo`.
+- `src/octa/desktop/controller.py` — Added packaging helper delegation and dynamic reload integration.
+- `src/octa/desktop/plugin_manager_dialog.py` — Created `PluginManagerDialog` and `PluginInstallPreviewDialog`.
+- `src/octa/desktop/window.py` — Added "&Plugins..." button and connected to `PluginManagerDialog`.
+- `tests/unit/test_plugin_manager.py` — Added 12 unit and integration tests for Phase 9.3.
+- `ROADMAP.md` — Updated Phase 9.3 items and marked complete.
+- `README.md` — Updated status line, What Works Now, roadmap table, and test counts.
+- `CHANGELOG.md` — Added Phase 9.3 entry under [Unreleased].
+- `docs/architecture.md` — Added Phase 9.3 architecture section.
+- `docs/PROGRESS.md` — Appended this progress entry.
+
+### Validation
+- **Plugin Manager Test Suite**: Ran `pytest tests/unit/test_plugin_manager.py -v`: 12 passed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 385 passed, 1 skipped.
+- **Godot Enhanced Character Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_enhanced_character.gd`: 66 passed, 0 failed.
+- **Godot Protocol Test Suite**: Ran Godot 4.7.2 headless test `godot/tests/test_ws_protocol.gd`: 13 passed, 0 failed.
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 80 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 9.3 files when approved.
+- All Phase 9 milestones (9.1, 9.2, 9.3) are now complete.

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from octa.desktop.controller import DesktopController
+from octa.desktop.plugin_manager_dialog import PluginManagerDialog
 from octa.process.state import ProcessState
 
 
@@ -262,10 +263,13 @@ class DiagnosticWindow(QWidget):
         self._combo_tutorial.currentIndexChanged.connect(self._on_tutorial_combo_changed)
         self._btn_reset_tutorial = QPushButton("&Reset Tutorial", self)
         self._btn_reset_tutorial.clicked.connect(self._on_reset_tutorial_clicked)
+        self._btn_manage_plugins = QPushButton("&Plugins...", self)
+        self._btn_manage_plugins.clicked.connect(self._on_manage_plugins_clicked)
 
         selector_row.addWidget(selector_label)
         selector_row.addWidget(self._combo_tutorial, stretch=1)
         selector_row.addWidget(self._btn_reset_tutorial)
+        selector_row.addWidget(self._btn_manage_plugins)
         tutorial_layout.addLayout(selector_row)
 
         monitor_row = QHBoxLayout()
@@ -445,6 +449,10 @@ class DiagnosticWindow(QWidget):
         self._btn_reset_tutorial.setAccessibleDescription(
             "Reset the active tutorial back to step 1"
         )
+        self._btn_manage_plugins.setAccessibleName("Manage Plugins")
+        self._btn_manage_plugins.setAccessibleDescription(
+            "Open the Tutorial Plugin Manager to inspect, install, or uninstall packages"
+        )
         self._combo_monitor.setAccessibleName("Monitor Selector")
         self._combo_monitor.setAccessibleDescription(
             "Select which display monitor is targeted for captures and overlay cues"
@@ -509,6 +517,7 @@ class DiagnosticWindow(QWidget):
             self._btn_voice_cancel,
             self._combo_tutorial,
             self._btn_reset_tutorial,
+            self._btn_manage_plugins,
             self._combo_monitor,
             self._btn_prev_step,
             self._btn_next_step,
@@ -535,7 +544,8 @@ class DiagnosticWindow(QWidget):
         self.setTabOrder(self._btn_read_aloud, self._btn_voice_cancel)
         self.setTabOrder(self._btn_voice_cancel, self._combo_tutorial)
         self.setTabOrder(self._combo_tutorial, self._btn_reset_tutorial)
-        self.setTabOrder(self._btn_reset_tutorial, self._combo_monitor)
+        self.setTabOrder(self._btn_reset_tutorial, self._btn_manage_plugins)
+        self.setTabOrder(self._btn_manage_plugins, self._combo_monitor)
         self.setTabOrder(self._combo_monitor, self._btn_prev_step)
         self.setTabOrder(self._btn_prev_step, self._btn_next_step)
         self.setTabOrder(self._btn_next_step, self._btn_hint)
@@ -600,6 +610,7 @@ class DiagnosticWindow(QWidget):
             self._btn_read_aloud,
             self._btn_voice_cancel,
             self._btn_reset_tutorial,
+            self._btn_manage_plugins,
             self._btn_prev_step,
             self._btn_next_step,
             self._btn_hint,
@@ -869,6 +880,11 @@ class DiagnosticWindow(QWidget):
             self._controller.reset_tutorial()
         finally:
             self._update_tutorial_display()
+
+    @Slot()
+    def _on_manage_plugins_clicked(self) -> None:
+        dlg = PluginManagerDialog(self._controller, parent=self)
+        dlg.exec()
 
     @Slot()
     def _on_prev_step_clicked(self) -> None:

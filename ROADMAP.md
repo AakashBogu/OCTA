@@ -207,7 +207,7 @@
 
 ---
 
-## Phase 9 — Secure Tutorial Package Bundles & Plugin Manager *(in progress)*
+## Phase 9 — Secure Tutorial Package Bundles & Plugin Manager *(complete)*
 
 ### Phase 9.1 — Secure Package Archive Format (`.octapack`) & CLI Tooling *(complete)*
 - [x] Compressed archive format specification (`.octapack` / ZIP container) holding `plugin.json` and tutorial definitions
@@ -228,12 +228,14 @@
 - [x] CLI support for package signing (`octa pack --signing-key <key> --key-id <id>`) and trust store inspection (`octa verify --trust-store <store.json>`)
 - [x] 29 comprehensive packaging and cryptography unit tests (`tests/unit/test_tutorial_packaging.py`) covering deterministic canonical manifest hashing, known test vectors, trusted/unknown/unsigned verification, tampered assets, invalid signatures, malformed trust stores, and CLI workflows
 
-### Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration *(planned)*
-- [ ] In-app Plugin Manager dialog (`PluginManagerDialog`) accessible from `DiagnosticWindow`
-- [ ] Visual listing of active tutorials and plugins with author, version, description, and trust badge
-- [ ] Safe package installation workflow (file picker -> pre-flight inspection modal -> consent confirmation -> extraction)
-- [ ] Isolated user plugin storage (`%LOCALAPPDATA%\OCTA\plugins\installed\`) with safe uninstallation
-- [ ] Dynamic catalog synchronization (`tutorials_catalog_reloaded`) updating the tutorial selector without application restart
+### Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration *(complete)*
+- [x] In-app Plugin Manager dialog (`PluginManagerDialog` in `src/octa/desktop/plugin_manager_dialog.py`) accessible from `DiagnosticWindow` ("&Plugins..." button) with full accessibility support and dynamic UI scaling
+- [x] Visual listing of installed plugins in a table with metadata, version, author, trust badges (Trusted, Signed, Community, Tampered), and tutorial summary
+- [x] Pre-flight inspection modal (`PluginInstallPreviewDialog`) showing manifest details, tutorial lists, cryptographic trust state, and requiring explicit acknowledgement before installing unpinned or unsigned packages
+- [x] Safe package extraction and installation (`extract_tutorial_package`, `install_tutorial_package` in `src/octa/tutorials/packaging.py`) with pre-flight verification, quota enforcement, staging directories, atomic replacement, and overwrite protection
+- [x] Safe uninstallation (`uninstall_tutorial_plugin`) guarding against path traversal, symlinks, and non-plugin directories with identity checks
+- [x] Dynamic catalog synchronization (`controller.install_tutorial_package`, `controller.uninstall_tutorial_plugin`) seamlessly refreshing the live tutorial selector without application restart
+- [x] 12 comprehensive unit and integration tests (`tests/unit/test_plugin_manager.py`) covering extraction, verification, collision prevention, overwrite protection, uninstall safety, preview dialog acknowledgement, and UI workflows
 
 ---
 

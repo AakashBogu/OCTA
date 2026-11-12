@@ -1,6 +1,6 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), and Phase 9.2 (Cryptographic integrity & provenance trust model) are implemented and verified.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), and Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration) are implemented and verified.
 >
 > **Last updated:** 2026-11-12
 
@@ -1124,3 +1124,82 @@ Asset Digest Check                      Signature Check
 6. **Strict Offline Operation**:
    - Trust and signature verification performs zero network calls.
    - Trust is established solely through pinned public keys in the local trust store.
+
+---
+
+## Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration Architecture
+
+The following describes the in-app plugin manager and package lifecycle architecture implemented in Phase 9.3.
+
+### Workflow & Data Flow
+
+```
+User selects .octapack
+         │
+         ▼
+Pre-flight In-Memory Verification (`verify_tutorial_package`)
+         │
+         ├──────────────────────────────────────────────┐
+         ▼                                              ▼
+   Valid Package?                               Invalid / Tampered
+         │                                              │
+         ▼                                              ▼
+Show Preview Dialog (`PluginInstallPreviewDialog`)  Show Critical Error Dialog
+         │                                          & Abort
+         ├───────────────────────────────┐
+         ▼                               ▼
+  TRUSTED_SIGNED          SIGNED_UNKNOWN_KEY or
+  (Pinned Key)            UNSIGNED_COMMUNITY
+         │                               │
+         │                        Requires explicit user
+         │                        acknowledgement checkbox
+         │                               │
+         └───────────────┬───────────────┘
+                         ▼
+               User clicks "Install"
+                         │
+                         ▼
+        Staged Atomic Extraction (`extract_tutorial_package`)
+        1. Create `.staging_<id>_<rand>` inside managed dir
+        2. Safe streaming extraction with quota and Zip Slip checks
+        3. Forbidden extension & symlink rejection
+        4. Validate extracted plugin manifest & task definitions
+        5. Verify no collision with reserved built-in IDs
+        6. Atomic swap: `os.replace(staging, final_dir)`
+           (with backup reversal if overwriting)
+                         │
+                         ▼
+      Dynamic Catalog Sync (`reload_tutorial_plugins`)
+      1. Re-scan managed plugin directory
+      2. Update `TutorialEngine` and `TutorialCatalog`
+      3. Emit `tutorials_catalog_reloaded` signal
+      4. Repopulate `_combo_tutorial` in `DiagnosticWindow`
+      (No application restart required)
+```
+
+### Architectural Principles
+
+1. **In-App Management with Pre-Flight Modal**:
+   - `PluginManagerDialog` presents an accessible Qt interface (`&Plugins...` in `DiagnosticWindow`) to inspect, install, and uninstall tutorial packages.
+   - Archives selected by the user are validated before any filesystem modification.
+   - `PluginInstallPreviewDialog` visualizes manifest metadata, included tutorial titles, and cryptographic provenance.
+
+2. **Explicit User Acknowledgement Guard**:
+   - Packages signed by unknown keys (`SIGNED_UNKNOWN_KEY`) or unsigned community packages (`UNSIGNED_COMMUNITY`) are clearly marked.
+   - The install action remains disabled until the user checks an explicit acknowledgement checkbox.
+   - Packages are never labeled official unless signed by an authentic pinned key in the trust store.
+   - Tampered or corrupted packages (`INVALID_TAMPERED`) are blocked unconditionally.
+
+3. **Staged Extraction & Atomic Replacement**:
+   - Extraction targets a temporary staging directory on the same filesystem volume (`.staging_<plugin_id>_<rand>`).
+   - Quotas, forbidden extensions, and Zip Slip path traversal checks are applied to every entry.
+   - Atomic replacement via `os.replace` ensures that partially extracted files never corrupt existing installations.
+   - If replacing an existing plugin with explicit consent, a temporary backup is held and restored if the replacement fails.
+
+4. **Safe Uninstallation**:
+   - `uninstall_tutorial_plugin` ensures the target directory is strictly contained within the managed plugin directory and is not a symlink.
+   - Confirms that `plugin.json` exists and its `id` matches the target plugin ID before deleting.
+
+5. **Zero-Restart Dynamic Synchronization**:
+   - After installation or uninstallation, `DesktopController` immediately invokes `reload_tutorial_plugins()`.
+   - The catalog emits `tutorials_catalog_reloaded`, which updates the companion UI dropdown seamlessly without terminating or restarting the application.

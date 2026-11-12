@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 9.2 — Cryptographic Integrity & Provenance Trust Model (complete)
+**Status:** 🟢 Phase 9.3 — Desktop Plugin Manager UI & Dynamic Catalog Integration (complete)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation), Phase 9.1 (Secure tutorial package archive format `.octapack`, CLI packager and zero-extraction verifier, Zip Slip defense, and quota enforcement), and Phase 9.2 (Cryptographic integrity, deterministic asset digests, Ed25519 manifest signing/verification, pinned trust store, three-tier trust classification, and offline verification) are implemented and verified.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation), Phase 9.1 (Secure tutorial package archive format `.octapack`, CLI packager and zero-extraction verifier, Zip Slip defense, and quota enforcement), Phase 9.2 (Cryptographic integrity, deterministic asset digests, Ed25519 manifest signing/verification, pinned trust store, three-tier trust classification, and offline verification), and Phase 9.3 (Desktop plugin manager UI, pre-flight package verification modal, trust badges, unprivileged acknowledgement requirement, safe atomic extraction, quota checks, path traversal guards, safe uninstallation, and zero-restart dynamic catalog synchronization) are implemented and verified.
 
 ---
 
@@ -139,6 +139,14 @@ OCTA currently includes eleven verified subsystems:
 - **Strict Offline-First Security:** Zero network requests during signature and trust verification; operates completely offline.
 - **CLI Signing & Verification:** `octa pack` supports `--signing-key` and `--key-id`, and `octa verify` supports `--trust-store` for custom trust root inspection.
 
+### 12. Phase 9.3 Desktop Plugin Manager UI & Dynamic Catalog Integration
+- **In-App Plugin Manager Dialog (`PluginManagerDialog`):** Accessible via the "&Plugins..." button in `DiagnosticWindow`. Features accessible Qt properties, keyboard navigation, and dynamic UI text scaling. Lists installed plugins in a table showing Name, ID, Version, Author, Trust Badges, and Tutorials.
+- **Pre-Flight Package Inspection & Trust Preview Modal (`PluginInstallPreviewDialog`):** Verifies `.octapack` packages in-memory before extraction. Displays plugin metadata, description, included tutorial titles, and security/provenance status. Completely blocks installation of invalid or tampered packages (`INVALID_TAMPERED`).
+- **Explicit User Acknowledgement Guard:** For packages signed with unknown keys (`SIGNED_UNKNOWN_KEY`) or unsigned packages (`UNSIGNED_COMMUNITY`), installation requires checking an explicit acknowledgement checkbox ("I understand this plugin is unsigned or has an unknown signer and accept responsibility for loading its tutorials"). Packages are never labeled official without an authentic pinned key in the trust store.
+- **Safe Staged Extraction & Atomic Placement:** Enforces all Phase 9.1 Zip Slip path traversal defenses, forbidden executable extensions, symlink rejection, and quotas. Extracts to a staging directory (`.staging_<id>_<rand>`) on the same volume and uses atomic `os.replace` to install, with backup reversal on failure. Overwrite protection prevents accidental overwriting of installed plugins or colliding with built-in tutorial IDs.
+- **Safe Uninstallation (`uninstall_tutorial_plugin`):** Removes only installed plugins inside the managed directory, verifies that `plugin.json` matches target ID before deletion, and prevents symlink escape.
+- **Zero-Restart Dynamic Catalog Synchronization:** Automatically refreshes the managed plugin directory and updates the tutorial selector combo in `DiagnosticWindow` immediately without restarting the application.
+
 ---
 
 ## Proposed Architecture
@@ -199,13 +207,13 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 8.3 | Accessibility adaptations | ✅ Complete |
 | 9.1 | Secure tutorial package archive & CLI | ✅ Complete |
 | 9.2 | Cryptographic integrity & trust model | ✅ Complete |
-| 9.3 | Desktop plugin manager UI & catalog sync | 📋 Planned |
+| 9.3 | Desktop plugin manager UI & catalog sync | ✅ Complete |
 
 ---
 
 ## Development Status
 
-- **Current phase:** Phase 9.2 Complete — Cryptographic Integrity & Provenance Trust Model implemented and verified with deterministic SHA-256 asset digests, OCTA canonical manifest byte format, Ed25519 manifest signing/verification, public-key trust store, four-tier trust classification, and offline verification.
+- **Current phase:** Phase 9.3 Complete — Desktop Plugin Manager UI & Dynamic Catalog Integration implemented and verified with in-app `.octapack` installer dialog, pre-flight cryptographic inspection, unpinned/unsigned acknowledgement consent, safe atomic extraction, quota checks, path traversal guards, safe uninstallation, and dynamic zero-restart catalog reloading.
 - **What exists:**
   - Runnable Godot 4.7 project with transparent borderless desktop overlay, articulated 3D character, 6 animations, `AnimationTree` state machine, 100% procedural assets under MIT license (`ASSETS_LICENSE.md`), and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
@@ -218,8 +226,9 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
   - Phase 8.3 Accessibility Adaptations (`src/octa/intelligence/overlay.py`, `src/octa/tutorials/sound.py`) with high-contrast dual-stroke cues, non-color shape indicators, dynamic text scaling (0.5x to 3.0x), in-memory harmonic completion chime synthesis, optional audio player, accessible Qt labeling, and keyboard focus policies.
   - Phase 9.1 Secure Tutorial Package Archive & CLI (`src/octa/tutorials/packaging.py`, `src/octa/__main__.py`) with atomic `.octapack` creation (`octa pack`), zero-extraction in-memory verification (`octa verify`), strict Zip Slip traversal rejection, executable/script exclusion, and quota checks (100 files, 10 MB compressed, 25 MB expanded, $\le 50:1$ compression ratio).
   - Phase 9.2 Cryptographic Integrity & Provenance Trust Model (`src/octa/tutorials/packaging.py`) with deterministic canonical manifest bytes (`canonical_manifest_bytes`), asset hashing, Ed25519 signing/verification via `cryptography>=42.0.0`, `TrustStore`, and four-tier trust classification (`TRUSTED_SIGNED`, `SIGNED_UNKNOWN_KEY`, `UNSIGNED_COMMUNITY`, `INVALID_TAMPERED`).
-  - Full automated test suite: 373 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
-- **What does not exist yet:** Wake-word detection (explicitly deferred), cloud sync for progress, and desktop plugin manager UI & disk installation (Phase 9.3).
+  - Phase 9.3 Desktop Plugin Manager UI & Dynamic Catalog Integration (`src/octa/desktop/plugin_manager_dialog.py`, `src/octa/desktop/window.py`, `src/octa/tutorials/packaging.py`) with `PluginManagerDialog`, pre-flight `PluginInstallPreviewDialog`, unpinned/unsigned acknowledgement checkbox, atomic staged extraction, safe uninstallation, and dynamic catalog synchronization without restart.
+  - Full automated test suite: 385 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
+- **What does not exist yet:** Wake-word detection (explicitly deferred), cloud sync for progress, and in-app interactive tutorial authoring.
 
 ---
 

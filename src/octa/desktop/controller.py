@@ -6,6 +6,7 @@ import logging
 import time
 from collections.abc import Callable, Sequence
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QObject, QProcess, QTimer, Signal, Slot
@@ -21,6 +22,13 @@ from octa.process.manager import GodotProcessManager
 from octa.process.state import ProcessState
 from octa.tutorials.engine import TutorialEngine
 from octa.tutorials.feedback import TutorialFeedback, TutorialSessionMetrics
+from octa.tutorials.packaging import (
+    InstalledPluginInfo,
+    TrustStore,
+    get_installed_plugins_info,
+    install_tutorial_package,
+    uninstall_tutorial_plugin,
+)
 from octa.voice.controller import VoiceInteractionController
 
 DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 1500
@@ -116,6 +124,7 @@ class DesktopController(QObject):
 
         self._stopping = False
         self._restarting = False
+        self._tutorial_plugin_dir_override: Path | None = None
         self._connect_signals()
 
     def _connect_signals(self) -> None:
@@ -462,6 +471,56 @@ class DesktopController(QObject):
     def reload_tutorial_plugins(self, plugins_dir: Any = None) -> Any:
         """Reload external tutorial plugins from disk and refresh catalog."""
         return self._tutorial_engine.reload_plugins(plugins_dir)
+
+    @property
+    def tutorial_plugin_dir(self) -> Path:
+        """Configured or default managed tutorial plugins directory."""
+        if self._tutorial_plugin_dir_override is not None:
+            return self._tutorial_plugin_dir_override
+        if self._config.tutorial_plugin_dir is not None:
+            return self._config.tutorial_plugin_dir
+        if self._config.app_dir is not None:
+            return self._config.app_dir / "plugins" / "tutorials"
+        return Path.cwd() / "plugins" / "tutorials"
+
+    @tutorial_plugin_dir.setter
+    def tutorial_plugin_dir(self, directory: Path | str | None) -> None:
+        self._tutorial_plugin_dir_override = (
+            Path(directory).resolve() if directory is not None else None
+        )
+
+    def get_installed_plugins(
+        self, trust_store: TrustStore | None = None
+    ) -> tuple[InstalledPluginInfo, ...]:
+        """Return list of installed tutorial plugins in the managed directory."""
+        return get_installed_plugins_info(self.tutorial_plugin_dir, trust_store=trust_store)
+
+    def install_tutorial_package(
+        self,
+        package_path: Path | str,
+        *,
+        overwrite: bool = False,
+        trust_store: TrustStore | None = None,
+    ) -> InstalledPluginInfo:
+        """Install a verified tutorial package, reload catalog, and emit catalog reloaded."""
+        installed_info = install_tutorial_package(
+            package_path=package_path,
+            managed_plugins_dir=self.tutorial_plugin_dir,
+            overwrite=overwrite,
+            trust_store=trust_store,
+        )
+        self.reload_tutorial_plugins()
+        return installed_info
+
+    def uninstall_tutorial_plugin(self, plugin_id: str) -> bool:
+        """Uninstall a tutorial plugin, reload catalog, and emit catalog reloaded."""
+        removed = uninstall_tutorial_plugin(
+            plugin_id=plugin_id,
+            managed_plugins_dir=self.tutorial_plugin_dir,
+        )
+        if removed:
+            self.reload_tutorial_plugins()
+        return removed
 
     @property
     def display_manager(self) -> DisplayManager:
