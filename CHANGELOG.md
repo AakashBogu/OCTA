@@ -11,6 +11,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Phase 10.2 — Interactive Step & Tutorial Builder UI (2026-11-12)**
+  - `src/octa/desktop/tutorial_authoring_dialog.py` — Created `TutorialAuthoringDialog` providing a dedicated visual editor for authoring and fine-tuning tutorial definitions (`TaskDefinition`) and sequential steps (`TaskStep`). Includes top action toolbar (New, Open, Save, Save As, Validate), metadata editor (`task_id`, `version`, `title`, `application`, `goal`), ordered step sequence list with Add, Duplicate, Delete, Move Up, and Move Down controls, and step detail inspector for instructions, hints, outcome criteria, and visual cues.
+  - `src/octa/intelligence/tasks.py` — Added `TaskStepDefinition` schema alias, `save_task_definition_to_file` with schema validation and safe atomic replacement (`.tmp_<stem>_<rand>.json` + `os.replace`), and `load_task_definition_from_file` with strict UTF-8 decoding, JSON parsing, and zero code execution.
+  - `src/octa/intelligence/__init__.py` — Exported `TaskStepDefinition`, `save_task_definition_to_file`, and `load_task_definition_from_file`.
+  - `src/octa/desktop/__init__.py` — Exported `TutorialAuthoringDialog`.
+  - `src/octa/desktop/window.py` — Added "Tutorial &Builder..." button to the monitor row in `DiagnosticWindow`, wired to open `TutorialAuthoringDialog`, configured with accessible labels, keyboard focus policies, tab order, and text scaling.
+  - `octa.spec` — Added `octa.desktop.tutorial_authoring_dialog` to PyInstaller hidden imports.
+  - `src/octa/desktop/tutorial_authoring_dialog.py` — Integrated with Phase 10.1 `AuthoringCueDialog` ("Select on Screen...") to add highlight and arrow guidance cues directly to the active step, and added an in-app visual cue preview (`GuidanceOverlayWidget` with 3.5s auto-dismiss) that never captures or records the screen.
+  - `src/octa/desktop/tutorial_authoring_dialog.py` — Enforced schema validation engine rejecting empty instructions, non-sequential step orders, and collisions with reserved built-in tutorial IDs (`BUILTIN_TASK_IDS`).
+  - `tests/unit/test_tutorial_authoring.py` — Added 14 unit and Qt interaction tests covering save/load roundtrips, atomic write failure preservation, built-in ID collision rejection, step CRUD, cue list management, cue selector integration, preview rendering, and UI button wiring.
 - **Phase 10.1 — Visual Region & Directional Cue Selector (2026-11-12)**
   - `src/octa/intelligence/authoring_overlay.py` — Created `AuthoringOverlayWidget` enabling tutorial authors to click-and-drag highlight bounding boxes (`HighlightSpec`) and directional guidance arrows (`ArrowSpec`).
   - `src/octa/intelligence/authoring_overlay.py` — Implemented coordinate conversion helpers (`logical_to_physical`, `physical_to_logical`, `rect_logical_to_physical`, `rect_physical_to_logical`) integrating multi-monitor DPI scaling and negative virtual desktop coordinates.

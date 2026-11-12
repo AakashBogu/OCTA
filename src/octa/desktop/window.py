@@ -281,9 +281,12 @@ class DiagnosticWindow(QWidget):
         self._combo_monitor.currentIndexChanged.connect(self._on_monitor_combo_changed)
         self._btn_cue_selector = QPushButton("&Cue Selector...", self)
         self._btn_cue_selector.clicked.connect(self._on_cue_selector_clicked)
+        self._btn_tutorial_builder = QPushButton("Tutorial &Builder...", self)
+        self._btn_tutorial_builder.clicked.connect(self._on_tutorial_builder_clicked)
         monitor_row.addWidget(monitor_label)
         monitor_row.addWidget(self._combo_monitor, stretch=1)
         monitor_row.addWidget(self._btn_cue_selector)
+        monitor_row.addWidget(self._btn_tutorial_builder)
         tutorial_layout.addLayout(monitor_row)
 
         self._lbl_tutorial_status = QLabel(
@@ -464,6 +467,10 @@ class DiagnosticWindow(QWidget):
         self._btn_cue_selector.setAccessibleDescription(
             "Visually select or fine-tune highlight and arrow cues on screen"
         )
+        self._btn_tutorial_builder.setAccessibleName("Tutorial Builder")
+        self._btn_tutorial_builder.setAccessibleDescription(
+            "Create, inspect, and author sequential interactive tutorials and visual cues"
+        )
 
         self._btn_prev_step.setAccessibleName("Previous Step")
         self._btn_prev_step.setAccessibleDescription("Navigate back to the previous tutorial step")
@@ -527,6 +534,7 @@ class DiagnosticWindow(QWidget):
             self._btn_manage_plugins,
             self._combo_monitor,
             self._btn_cue_selector,
+            self._btn_tutorial_builder,
             self._btn_prev_step,
             self._btn_next_step,
             self._btn_hint,
@@ -555,7 +563,8 @@ class DiagnosticWindow(QWidget):
         self.setTabOrder(self._btn_reset_tutorial, self._btn_manage_plugins)
         self.setTabOrder(self._btn_manage_plugins, self._combo_monitor)
         self.setTabOrder(self._combo_monitor, self._btn_cue_selector)
-        self.setTabOrder(self._btn_cue_selector, self._btn_prev_step)
+        self.setTabOrder(self._btn_cue_selector, self._btn_tutorial_builder)
+        self.setTabOrder(self._btn_tutorial_builder, self._btn_prev_step)
         self.setTabOrder(self._btn_prev_step, self._btn_next_step)
         self.setTabOrder(self._btn_next_step, self._btn_hint)
         self.setTabOrder(self._btn_hint, self._btn_complete_manual)
@@ -621,6 +630,7 @@ class DiagnosticWindow(QWidget):
             self._btn_reset_tutorial,
             self._btn_manage_plugins,
             self._btn_cue_selector,
+            self._btn_tutorial_builder,
             self._btn_prev_step,
             self._btn_next_step,
             self._btn_hint,
@@ -905,6 +915,17 @@ class DiagnosticWindow(QWidget):
             display_manager=self._controller.display_manager,
             high_contrast=self._controller.accessibility_high_contrast,
             text_scale=self._controller.accessibility_text_scale,
+            parent=self,
+        )
+        dlg.exec()
+
+    @Slot()
+    def _on_tutorial_builder_clicked(self) -> None:
+        """Open the Interactive Step & Tutorial Builder dialog."""
+        from octa.desktop.tutorial_authoring_dialog import TutorialAuthoringDialog
+
+        dlg = TutorialAuthoringDialog(
+            controller=self._controller,
             parent=self,
         )
         dlg.exec()

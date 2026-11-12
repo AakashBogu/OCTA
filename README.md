@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 10.1 — Visual Region & Directional Cue Selector (complete)
+**Status:** 🟢 Phase 10.2 — Interactive Step & Tutorial Builder UI (complete)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation), Phase 9.1 (Secure tutorial package archive format `.octapack`, CLI packager and zero-extraction verifier, Zip Slip defense, and quota enforcement), Phase 9.2 (Cryptographic integrity, deterministic asset digests, Ed25519 manifest signing/verification, pinned trust store, three-tier trust classification, and offline verification), Phase 9.3 (Desktop plugin manager UI, pre-flight package verification modal, trust badges, unprivileged acknowledgement requirement, safe atomic extraction, quota checks, path traversal guards, safe uninstallation, and zero-restart dynamic catalog synchronization), and Phase 10.1 (Visual region and directional arrow authoring overlay, multi-monitor geometry and negative virtual coordinate mapping, DPI scaling conversion, fine-tuning controls HUD, companion authoring dialog, and learner-matching accessibility preview) are implemented and verified.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation), Phase 9.1 (Secure tutorial package archive format `.octapack`, CLI packager and zero-extraction verifier, Zip Slip defense, and quota enforcement), Phase 9.2 (Cryptographic integrity, deterministic asset digests, Ed25519 manifest signing/verification, pinned trust store, three-tier trust classification, and offline verification), Phase 9.3 (Desktop plugin manager UI, pre-flight package verification modal, trust badges, unprivileged acknowledgement requirement, safe atomic extraction, quota checks, path traversal guards, safe uninstallation, and zero-restart dynamic catalog synchronization), Phase 10.1 (Visual region and directional arrow authoring overlay, multi-monitor geometry and negative virtual coordinate mapping, DPI scaling conversion, fine-tuning controls HUD, companion authoring dialog, and learner-matching accessibility preview), and Phase 10.2 (Interactive Step & Tutorial Builder UI, structured task metadata editing, ordered step CRUD and re-indexing, in-app schema validation, reserved built-in ID collision protection, visual cue integration and preview, and safe atomic JSON persistence) are implemented and verified.
 
 ---
 
@@ -34,7 +34,7 @@ OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop
 
 ## What Works Now
 
-OCTA currently includes eleven verified subsystems:
+OCTA currently includes fourteen verified subsystems:
 
 ### 1. Phase 7.0 Enhanced Godot 3D Character & Desktop Window
 - **Transparent Borderless Window:** Transparent desktop companion overlay with per-pixel alpha transparency, always-on-top ordering, default bottom-right screen docking, and left-click mouse dragging to position the character anywhere on the desktop.
@@ -156,6 +156,15 @@ OCTA currently includes eleven verified subsystems:
 - **Strict Privacy & Dismissal Safety:** Captures pointer coordinates strictly during active selection within its own canvas. Never captures or records screen pixels, never transmits remote data, and never synthesizes keystrokes or clicks. Dismissal via `Escape` or `Cancel` immediately closes the overlay and restores normal desktop interaction without leaving click-intercepting surfaces.
 - **Single-Display Scope & Physical Hardware Note:** The authoring overlay targets one monitor at a time as selected by the user, matching the active tutorial monitor. Automated test coverage exercises simulated display geometries, DPI scale factors, and negative coordinates; physical multi-monitor hardware behaviors require manual verification.
 
+### 14. Phase 10.2 Interactive Step & Tutorial Builder UI
+- **In-App Tutorial Authoring Dialog (`TutorialAuthoringDialog`):** Accessible via the "Tutorial &Builder..." button in `DiagnosticWindow` with full keyboard accessibility, tab order navigation, and UI text scaling. Provides a cohesive, modeless or modal workbench for authoring sequential interactive tutorials.
+- **Structured Task Metadata:** Edits top-level `TaskDefinition` fields including unique task ID, semantic version, tutorial title, target application, and overall learning goal.
+- **Ordered Step Sequence Management:** Supports adding steps, deleting steps (strictly enforcing a minimum 1-step safety boundary), duplicating steps with auto-generated unique IDs, and moving steps up/down with automatic sequential order re-indexing (1..N).
+- **Step Detail Inspector:** Comprehensive editor for step titles, spoken & displayed guidance instructions, progressive sequential hints (one per line), and multimodal AI verification criteria (`ExpectedOutcome`: observable description, required visual elements, verification prompt hints).
+- **Visual Guidance Cue Authoring & Preview:** Integrates directly with Phase 10.1 `AuthoringCueDialog` ("Select on Screen...") to define highlights and directional arrows, and provides a safe in-app cue preview (`GuidanceOverlayWidget` with 3.5s auto-dismiss) that never captures or records the screen.
+- **In-App Schema Validator & ID Collision Protection:** Enforces schema integrity before saving, verifying required non-empty fields, step order invariants, and strictly forbidding collision with reserved built-in tutorial IDs (`BUILTIN_TASK_IDS`).
+- **Safe Atomic JSON Persistence:** `save_task_definition_to_file` and `load_task_definition_from_file` support safe atomic replacement (`.tmp_<stem>_<rand>.json` + `os.replace`), strict UTF-8 decoding, and pure-data JSON deserialization with zero code execution.
+
 ---
 
 ## Proposed Architecture
@@ -218,14 +227,14 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 9.2 | Cryptographic integrity & trust model | ✅ Complete |
 | 9.3 | Desktop plugin manager UI & catalog sync | ✅ Complete |
 | 10.1 | Visual region & directional cue selector | ✅ Complete |
-| 10.2 | Interactive step & tutorial builder UI | 📋 Planned |
+| 10.2 | Interactive step & tutorial builder UI | ✅ Complete |
 | 10.3 | Plugin project workspace & package wizard | 📋 Planned |
 
 ---
 
 ## Development Status
 
-- **Current phase:** Phase 10.1 Complete — Visual Region & Directional Cue Selector implemented and verified with interactive on-screen authoring overlay (`AuthoringOverlayWidget`), multi-monitor negative coordinate mapping, DPI scaling conversion, fine-tuning controls HUD, companion cue dialog (`AuthoringCueDialog`), and learner-matching accessibility previews.
+- **Current phase:** Phase 10.2 Complete — Interactive Step & Tutorial Builder UI implemented and verified with structured task metadata editing, ordered step sequence management, schema validation, reserved ID collision prevention, cue selection and preview integration, and atomic JSON persistence.
 - **What exists:**
   - Runnable Godot 4.7 project with transparent borderless desktop overlay, articulated 3D character, 6 animations, `AnimationTree` state machine, 100% procedural assets under MIT license (`ASSETS_LICENSE.md`), and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
@@ -240,8 +249,9 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
   - Phase 9.2 Cryptographic Integrity & Provenance Trust Model (`src/octa/tutorials/packaging.py`) with deterministic canonical manifest bytes (`canonical_manifest_bytes`), asset hashing, Ed25519 signing/verification via `cryptography>=42.0.0`, `TrustStore`, and four-tier trust classification (`TRUSTED_SIGNED`, `SIGNED_UNKNOWN_KEY`, `UNSIGNED_COMMUNITY`, `INVALID_TAMPERED`).
   - Phase 9.3 Desktop Plugin Manager UI & Dynamic Catalog Integration (`src/octa/desktop/plugin_manager_dialog.py`, `src/octa/desktop/window.py`, `src/octa/tutorials/packaging.py`) with `PluginManagerDialog`, pre-flight `PluginInstallPreviewDialog`, unpinned/unsigned acknowledgement checkbox, atomic staged extraction, safe uninstallation, and dynamic catalog synchronization without restart.
   - Phase 10.1 Visual Region & Directional Cue Selector (`src/octa/intelligence/authoring_overlay.py`, `src/octa/desktop/window.py`) with interactive click-and-drag overlay, multi-monitor adaptation, negative coordinate handling, DPI scaling conversion, fine-tuning controls HUD, companion `AuthoringCueDialog`, learner-accurate accessibility previews, and strict dismissal cleanup.
-  - Full automated test suite: 396 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
-- **What does not exist yet:** Wake-word detection (explicitly deferred), cloud sync for progress, interactive step/task builder UI (Phase 10.2), and plugin project workspace & package wizard (Phase 10.3).
+  - Phase 10.2 Interactive Step & Tutorial Builder UI (`src/octa/desktop/tutorial_authoring_dialog.py`, `src/octa/intelligence/tasks.py`) with dedicated `TutorialAuthoringDialog`, structured metadata editing, sequential step list reordering, schema validation, reserved built-in ID collision protection, visual cue integration and preview, and atomic JSON persistence.
+  - Full automated test suite: 411 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
+- **What does not exist yet:** Wake-word detection (explicitly deferred), cloud sync for progress, and plugin project workspace & package wizard (Phase 10.3).
 
 ---
 

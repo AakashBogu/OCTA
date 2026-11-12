@@ -250,13 +250,15 @@
 - [x] Immediate cancellation and dismissal cleanup: pressing `Esc` or clicking `Cancel` closes the overlay instantly and restores desktop interaction without leaving click-intercepting surfaces
 - [x] 11 comprehensive automated tests (`tests/unit/test_authoring_overlay.py`) covering drag selection, arrow creation, negative monitor coords, DPI scaling, fine-tuning, high contrast, cancel/confirm dismissal, and UI integration
 
-### Phase 10.2 — Interactive Step & Tutorial Builder UI (`TutorialAuthoringDialog`) *(planned)*
-- [ ] Dedicated visual authoring interface (`TutorialAuthoringDialog`) accessible from `DiagnosticWindow` or standalone CLI mode
-- [ ] Structured task editor for `TaskDefinition` (title, app name, description, tags, target outcomes)
-- [ ] Step management list: add, remove, reorder, duplicate, and live step preview test (temporarily rendering cues)
-- [ ] Step detail inspector for instructions, progressive hint sequences, expected verification prompts, and guidance specs
-- [ ] In-app schema validator checking against malformed JSON, empty hint chains, and ID collisions with `BUILTIN_TASK_IDS`
-- [ ] Import and export capabilities for raw tutorial JSON definitions with atomic file saving
+### Phase 10.2 — Interactive Step & Tutorial Builder UI (`TutorialAuthoringDialog`) *(complete)*
+- [x] Dedicated visual authoring interface (`TutorialAuthoringDialog` in `src/octa/desktop/tutorial_authoring_dialog.py`) accessible from `DiagnosticWindow` ("Tutorial &Builder..." button) with full keyboard accessibility, tab navigation, and UI text scaling
+- [x] Structured task metadata editor for `TaskDefinition` (`task_id`, `version`, `title`, `application`, `goal`)
+- [x] Ordered step sequence list supporting adding, deleting (protecting minimum 1 step), duplicating, and reordering steps up/down with automatic sequential order re-indexing
+- [x] Step detail inspector editing instructions (spoken & displayed), progressive sequential hints, expected outcome criteria (`description`, `required_elements`, `verification_hint`), and overlay cues
+- [x] Visual guidance cue integration launching Phase 10.1 `AuthoringCueDialog` ("Select on Screen...") and rendering learner-accurate non-recording overlay preview (`GuidanceOverlayWidget` with 3.5s auto-dismiss)
+- [x] In-app schema validator (`validate_current`, `build_task_definition`) enforcing required fields, non-empty instructions, unique step IDs, and strictly preventing collision with reserved built-in tutorials (`BUILTIN_TASK_IDS`)
+- [x] Safe atomic JSON persistence (`save_task_definition_to_file`, `load_task_definition_from_file`) using volume-local staging (`.tmp_<stem>_<rand>.json`) and `os.replace` to prevent file truncation or corruption
+- [x] 14 comprehensive unit and Qt interaction tests (`tests/unit/test_tutorial_authoring.py`) covering save/load roundtrips, atomic failure preservation, built-in ID collision rejection, step CRUD, cue management, and UI integration
 
 ### Phase 10.3 — Plugin Project Workspace & Integrated Package Wizard *(planned)*
 - [ ] Project workspace manager (`TutorialPluginProject`) managing manifest files (`plugin.json`), tutorial definitions, and safe documentation

@@ -1,6 +1,6 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), and Phase 10.1 (Visual region & directional cue selector) are implemented and verified.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), Phase 10.1 (Visual region & directional cue selector), and Phase 10.2 (Interactive step & tutorial builder UI) are implemented and verified.
 >
 > **Last updated:** 2026-11-12
 
@@ -1272,3 +1272,71 @@ The following describes the interactive visual authoring overlay and coordinate 
 5. **Target Display Scoping & Limitations**:
    - The authoring overlay targets one monitor at a time as selected by the author in the monitor dropdown or active display configuration. It does not span across multiple monitors simultaneously.
    - Coordinate conversion and geometry adaptation are verified across simulated multi-monitor topologies with negative coordinates and scaling, while physical multi-monitor hardware behaviors remain subject to manual verification.
+
+---
+
+## Phase 10.2 — Interactive Step & Tutorial Builder UI Architecture
+
+The following describes the in-app interactive step and tutorial authoring architecture implemented in Phase 10.2.
+
+### Component Relationship
+
+```
+                     DiagnosticWindow ("Tutorial &Builder...")
+                                     │
+                                     ▼
+                          TutorialAuthoringDialog
+                      (Interactive Studio Workbench)
+                                     │
+        ┌────────────────────────────┴────────────────────────────┐
+        ▼                                                         ▼
+Left Pane (Overview)                                     Right Pane (Step Inspector)
+• Task Metadata Editor                                   • Step ID & Title
+  - task_id, version, title, app, goal                   • Spoken & Displayed Instruction
+• Steps Sequence List (`QListWidget`)                    • Progressive Sequential Hints
+  - Sequential re-indexing (`order = idx + 1`)           • Expected Outcome (Criteria)
+  - ➕ Add Step                                            - description, required_elements
+  - 📋 Duplicate Step                                      - verification_hint
+  - 🗑 Delete Step (min 1 guard)                          • Visual Guidance Cues List
+  - ⬆ Move Up / ⬇ Move Down                                 - 🎯 Select on Screen... (Phase 10.1)
+                                                            - 🗑 Remove Cue
+                                                            - 👁 Preview Cues (3.5s auto-dismiss)
+                                     │
+                                     ▼
+                    Persistence & Schema Validation
+    ┌────────────────────────────────┴────────────────────────────────┐
+    ▼                                                                 ▼
+In-App Validation (`validate_current`)               Atomic File Operations
+• Required non-empty string checks                  • `save_task_definition_to_file`
+• Sequential step order invariant                     - Staging `.tmp_<stem>_<rand>.json`
+• Unique step ID enforcement                          - `os.replace` volume-local atomic swap
+• Reserved built-in collision prevention              - Target overwrite control (`overwrite=True/False`)
+  (`BUILTIN_TASK_IDS` protection)                   • `load_task_definition_from_file`
+                                                      - Strict UTF-8 decoding & JSON parse
+                                                      - Pure-data deserialization (no code exec)
+```
+
+### Architectural Principles
+
+1. **Single Source of Truth for Schema & Validation**:
+   - `TaskDefinition`, `TaskStep` (aliased as `TaskStepDefinition`), `ExpectedOutcome`, and `OverlayHint` in `src/octa/intelligence/tasks.py` serve as the immutable single source of truth for all tutorial data.
+   - Validation logic is executed prior to writing any file to disk via `TaskDefinition.from_dict` and `TaskDefinition.__post_init__`.
+
+2. **Reserved Built-in Tutorial Protection**:
+   - The editor explicitly queries `BUILTIN_TASK_IDS` from `octa.tutorials.catalog` (`octa-welcome-task`, `windows-notepad-save`, `windows-explorer-new-folder`).
+   - Any attempt to save or validate a tutorial definition whose `task_id` collides with a built-in tutorial is immediately rejected with a descriptive `TaskValidationError`, preventing core tutorial shadowing.
+
+3. **Step Sequence Invariants & Structural CRUD**:
+   - Every `TaskStep` enforces `step.order == idx + 1`.
+   - Adding, duplicating, deleting, or reordering steps automatically re-indexes step orders sequentially across the list.
+   - Deletion enforces a strict safety guard: a tutorial must contain at least one step. The delete button is disabled whenever only one step remains.
+
+4. **Safe Visual Cue Integration & Local Preview**:
+   - The visual cue inspector links to Phase 10.1's `AuthoringCueDialog`, allowing authors to visually highlight target UI elements or indicate action flows with directional arrows.
+   - Previewing cues instantiates a local `GuidanceOverlayWidget` initialized with high contrast and text scaling options matching user preferences.
+   - The preview window is non-recording, never captures pixels or synthesizes input, and features a single-shot auto-dismiss timer (3.5 seconds) to prevent lingering overlay surfaces.
+
+5. **Atomic File Persistence with Volume Locality**:
+   - `save_task_definition_to_file` stages data into a temporary file (`.tmp_<stem>_<rand>.json`) in the same directory as the target destination.
+   - Atomic replacement is performed via `os.replace`, ensuring failed serializations or disk write interruptions never truncate, corrupt, or zero out existing tutorial files.
+   - Loading (`load_task_definition_from_file`) strictly uses standard library `json.loads` without evaluating Python code or accepting arbitrary executable scripts.

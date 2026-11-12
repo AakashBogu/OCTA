@@ -1047,3 +1047,52 @@ Implemented and verified Phase 10.1 — Visual Region & Directional Cue Selector
 ### Next Step
 - Review and stage Phase 10.1 files when approved.
 - Proceed to Phase 10.2: Interactive Step & Tutorial Builder UI (`TutorialAuthoringDialog`).
+
+---
+
+## Task: Phase 10.2 — Interactive Step & Tutorial Builder UI
+
+**Date:** 2026-11-12
+**Phase:** 10.2
+
+### Summary
+Implemented and verified Phase 10.2 — Interactive Step & Tutorial Builder UI for OCTA:
+1. Created `src/octa/desktop/tutorial_authoring_dialog.py` implementing `TutorialAuthoringDialog`, an in-app visual workbench for authoring and fine-tuning tutorial definitions (`TaskDefinition`) and sequential steps (`TaskStep`).
+2. Built left-column task overview pane with top-level metadata editor (`task_id`, `version`, `title`, `application`, `goal`), status bar indicator, and steps sequence list widget (`QListWidget`).
+3. Implemented full step sequence management: Add Step, Duplicate Step (with auto-generated unique ID), Delete Step (strictly enforcing a minimum 1-step safety boundary), Move Up, and Move Down, maintaining strict sequential step order invariants (`step.order == idx + 1`).
+4. Built right-column step detail inspector with scrollable inputs for step ID, title, spoken & displayed instruction text, sequential progressive hints (one per line), and multimodal AI verification criteria (`ExpectedOutcome`: description, required visual elements, verifier prompt hint).
+5. Integrated visual guidance cue authoring linking to Phase 10.1 `AuthoringCueDialog` ("Select on Screen...") and implemented learner-accurate in-app preview (`GuidanceOverlayWidget` with 3.5s auto-dismiss) that never captures or records the screen.
+6. Added `TaskStepDefinition` alias, `save_task_definition_to_file` with schema validation and safe atomic replacement (`.tmp_<stem>_<rand>.json` + `os.replace`), and `load_task_definition_from_file` with strict UTF-8 decoding, JSON parsing, and zero code execution in `src/octa/intelligence/tasks.py`.
+7. Built in-app schema validation engine (`validate_current`, `build_task_definition`) in `TutorialAuthoringDialog` enforcing required non-empty fields, step order invariants, and strictly forbidding collision with reserved built-in tutorial IDs (`BUILTIN_TASK_IDS`).
+8. Added "Tutorial &Builder..." action button to `DiagnosticWindow` in `src/octa/desktop/window.py` wired to `_on_tutorial_builder_clicked`, with accessible labeling, StrongFocus keyboard navigation, tab order, and dynamic text scaling.
+9. Exported `TutorialAuthoringDialog` from `src/octa/desktop/__init__.py`, `TaskStepDefinition`, `save_task_definition_to_file`, and `load_task_definition_from_file` from `src/octa/intelligence/__init__.py`. Added `"octa.desktop.tutorial_authoring_dialog"` to `hidden_imports` in `octa.spec`.
+10. Added 14 automated unit and Qt interaction tests in `tests/unit/test_tutorial_authoring.py` covering save/load roundtrips, atomic failure preservation, built-in ID collision rejection, step CRUD, cue list management, cue selector integration, preview rendering, and UI button wiring.
+
+### Files Changed
+- `src/octa/intelligence/tasks.py` — Added `TaskStepDefinition`, `save_task_definition_to_file`, and `load_task_definition_from_file`.
+- `src/octa/intelligence/__init__.py` — Exported `TaskStepDefinition`, `save_task_definition_to_file`, and `load_task_definition_from_file`.
+- `src/octa/desktop/tutorial_authoring_dialog.py` — Created `TutorialAuthoringDialog` visual tutorial editor.
+- `src/octa/desktop/__init__.py` — Exported `TutorialAuthoringDialog`.
+- `src/octa/desktop/window.py` — Added "Tutorial &Builder..." button and slot to `DiagnosticWindow`.
+- `octa.spec` — Added `"octa.desktop.tutorial_authoring_dialog"` to hidden imports.
+- `tests/unit/test_tutorial_authoring.py` — Created 14 unit and Qt interaction tests.
+- `ROADMAP.md` — Marked Phase 10.2 complete.
+- `README.md` — Updated status line, What Works Now with section 14, roadmap table, and test counts.
+- `CHANGELOG.md` — Added Phase 10.2 entry under [Unreleased].
+- `docs/architecture.md` — Documented Phase 10.2 architecture.
+- `docs/PROGRESS.md` — Appended this progress entry.
+
+### Validation
+- **Tutorial Authoring Test Suite**: Ran `pytest tests/unit/test_tutorial_authoring.py -v`: 14 passed.
+- **Focused Desktop & Authoring Test Suite**: Ran `pytest tests/unit/test_tutorial_authoring.py tests/unit/test_desktop_window.py tests/unit/test_authoring_overlay.py -v`: 31 passed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 411 passed, 1 skipped.
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 84 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 10.2 files when approved.
+- Proceed to Phase 10.3: Plugin Project Workspace & Integrated Package Wizard.

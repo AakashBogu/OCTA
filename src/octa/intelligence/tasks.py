@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Self
 
 from octa.intelligence.capture import CaptureRegion
@@ -372,6 +374,9 @@ class TaskStep:
         )
 
 
+TaskStepDefinition = TaskStep
+
+
 @dataclass(frozen=True)
 class TaskDefinition:
     """Validated multi-step tutorial task definition."""
@@ -491,6 +496,68 @@ class TaskDefinition:
             raise TaskValidationError(f"Malformed task JSON: {exc}") from exc
 
         return cls.from_dict(parsed)
+
+
+def save_task_definition_to_file(
+    task: TaskDefinition,
+    file_path: Path | str,
+    *,
+    overwrite: bool = True,
+) -> Path:
+    """Safely and atomically serialize a TaskDefinition to a JSON file.
+
+    Validates schema before writing and writes via a temporary file + atomic replace
+    so that failed writes never truncate or corrupt existing destination files.
+    """
+    if not isinstance(task, TaskDefinition):
+        raise TaskValidationError(f"Expected TaskDefinition instance, got {type(task).__name__}.")
+
+    dest = Path(file_path).resolve()
+    if not dest.name.lower().endswith(".json"):
+        dest = dest.with_suffix(".json")
+
+    if dest.exists() and not overwrite:
+        raise FileExistsError(f"File '{dest}' already exists and overwrite=False.")
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        data = task.to_dict()
+        TaskDefinition.from_dict(data)
+        json_text = json.dumps(data, indent=2, ensure_ascii=False)
+    except (TaskValidationError, AttributeError, TypeError) as exc:
+        raise TaskValidationError(f"Invalid TaskDefinition cannot be saved: {exc}") from exc
+
+    # Write to a temporary file in the same directory to ensure atomic os.replace
+    tmp_path = dest.with_name(f".tmp_{dest.stem}_{os.urandom(4).hex()}.json")
+    try:
+        tmp_path.write_text(json_text, encoding="utf-8")
+        os.replace(str(tmp_path), str(dest))
+    except Exception as exc:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+        raise exc
+
+    return dest
+
+
+def load_task_definition_from_file(file_path: Path | str) -> TaskDefinition:
+    """Load, parse, and validate a TaskDefinition from a JSON file.
+
+    Strictly reads and deserializes JSON content with zero code execution.
+    """
+    source = Path(file_path).resolve()
+    if not source.is_file():
+        raise FileNotFoundError(f"Tutorial file not found: '{source}'.")
+
+    try:
+        text = source.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise TaskValidationError(f"File '{source.name}' contains invalid UTF-8: {exc}") from exc
+
+    return TaskDefinition.from_json(text)
 
 
 @dataclass(frozen=True)
