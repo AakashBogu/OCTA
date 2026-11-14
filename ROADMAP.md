@@ -280,13 +280,13 @@
 - [x] Strict privacy and consent safeguards: user-initiated capture only, exact-request single-use remote LLM consent binding, memory-only image buffers, and credential redaction
 - [x] Comprehensive automated test suite with mock LLM providers covering threshold evaluations, missing elements, and UI state updates (13 unit tests in `tests/unit/test_step_verification_dialog.py`)
 
-### Phase 11.2 — Speech Preview & Audio Timing Simulator *(planned)*
-- [ ] In-editor TTS instruction preview in `TutorialAuthoringDialog` with audio playback controls for spoken instructions and progressive hints
-- [ ] Speech timing estimator calculating word counts, estimated duration, and recommended visual cue display durations
-- [ ] Audio playback integration with `TutorialSoundPlayer` and injectable `TextToSpeechProvider` protocols
-- [ ] Synchronized cue preview: simulates visual overlay highlight and arrow durations timed to spoken audio
-- [ ] Immediate playback stop/cancel with buffer flushing and strict adherence to user audio mute/disable preferences
-- [ ] Comprehensive unit and Qt interaction tests verifying duration calculations, playback state machine, and audio preference enforcement
+### Phase 11.2 — Speech Preview & Audio Timing Simulator *(complete)*
+- [x] In-editor TTS instruction preview in `TutorialAuthoringDialog` with audio playback controls for spoken instructions and progressive hints (`SpeechPreviewDialog` in `src/octa/desktop/speech_preview_dialog.py`)
+- [x] Speech timing estimator calculating word counts, estimated duration, and recommended visual cue display durations (`src/octa/tutorials/speech_timing.py`)
+- [x] Audio playback integration with injectable `TextToSpeechProvider` protocols and `AudioPlaybackBackend`
+- [x] Synchronized cue preview: simulates visual overlay highlight and arrow durations timed to spoken audio
+- [x] Immediate playback stop/cancel with buffer flushing and strict adherence to user audio mute/disable preferences
+- [x] Comprehensive unit and Qt interaction tests verifying duration calculations, playback state machine, and audio preference enforcement (18 unit tests in `tests/unit/test_speech_preview_dialog.py`)
 
 ### Phase 11.3 — Interactive Author Step Runner & Playtest Sandbox *(planned)*
 - [ ] Dedicated non-destructive playtest mode launched directly from `TutorialAuthoringDialog` and `PluginProjectDialog`

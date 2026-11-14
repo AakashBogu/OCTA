@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from octa.core.config import AppConfig
 from octa.desktop.controller import DesktopController
 from octa.intelligence.authoring_overlay import AuthoringCueDialog
 from octa.intelligence.capture import CaptureRegion
@@ -56,6 +57,7 @@ from octa.intelligence.tasks import (
     save_task_definition_to_file,
 )
 from octa.tutorials.catalog import BUILTIN_TASK_IDS
+from octa.tutorials.speech_timing import estimate_speech_timing
 
 logger = logging.getLogger("octa.desktop.authoring")
 
@@ -303,6 +305,24 @@ class TutorialAuthoringDialog(QDialog):
         self._txt_step_hints.textChanged.connect(self._on_step_field_edited)
         insp_layout.addWidget(self._txt_step_hints)
 
+        # Speech & Audio Timing Simulator Row
+        row_speech = QHBoxLayout()
+        self._lbl_speech_timing = QLabel(self._grp_inspector)
+        self._lbl_speech_timing.setStyleSheet(
+            "color: #475569; font-size: 11px; font-weight: 500; background: #f8fafc; "
+            "padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 4px;"
+        )
+        self._lbl_speech_timing.setAccessibleName("Speech Timing Estimate")
+        self._btn_speech_preview = QPushButton("🔊 Speech & Timing...", self._grp_inspector)
+        self._btn_speech_preview.setToolTip(
+            "Preview spoken instructions and hints with audio cadence timing simulation."
+        )
+        self._btn_speech_preview.setAccessibleName("Open Speech Preview and Audio Timing Simulator")
+        self._btn_speech_preview.clicked.connect(self._on_speech_preview_clicked)
+        row_speech.addWidget(self._lbl_speech_timing, stretch=1)
+        row_speech.addWidget(self._btn_speech_preview)
+        insp_layout.addLayout(row_speech)
+
         # Expected Outcome Box
         grp_outcome = QGroupBox("Expected Outcome (AI Verification Criteria)", self._grp_inspector)
         out_layout = QVBoxLayout(grp_outcome)
@@ -545,6 +565,42 @@ class TutorialAuthoringDialog(QDialog):
 
         # Refresh cues list
         self._refresh_cues_list()
+        self._update_speech_timing_readout()
+
+    def _update_speech_timing_readout(self) -> None:
+        """Update inline speech timing estimate label for current instruction text."""
+        inst_text = self._txt_step_instruction.toPlainText().strip()
+        estimate = estimate_speech_timing(inst_text)
+
+        # Detect provider label
+        prov_label = "TTS: Disabled"
+        if (
+            self._controller is not None
+            and hasattr(self._controller, "voice_controller")
+            and self._controller.voice_controller is not None
+        ):
+            vc = self._controller.voice_controller
+            if vc.is_tts_enabled:
+                prov_label = f"TTS: {getattr(vc.tts_provider, 'provider_name', 'Active')}"
+        else:
+            try:
+                cfg = AppConfig.load()
+                prov_label = f"TTS: {cfg.voice_tts_provider.title()}"
+            except Exception:
+                pass
+
+        rec_sec = estimate.recommended_cue_duration_seconds
+        w_cnt = estimate.word_count
+        if w_cnt == 0:
+            self._lbl_speech_timing.setText(
+                f"⏱ Speech: ~0.0s (0 words) | Rec. Cue: {rec_sec:.1f}s [{prov_label}]"
+            )
+        else:
+            dur_s = estimate.estimated_duration_seconds
+            self._lbl_speech_timing.setText(
+                f"⏱ Speech: ~{dur_s:.1f}s ({w_cnt} words) | "
+                f"Rec. Cue: ~{rec_sec:.1f}s [{prov_label}]"
+            )
 
     def _refresh_cues_list(self) -> None:
         """Render overlay hints for active step in the inspector list."""
@@ -596,6 +652,7 @@ class TutorialAuthoringDialog(QDialog):
             title = self._txt_step_title.text().strip() or f"Step {order}"
             step_id = self._txt_step_id.text().strip() or f"step-{order}"
             self._list_steps.item(self._active_step_index).setText(f"#{order}: {title} ({step_id})")
+        self._update_speech_timing_readout()
         self._mark_dirty()
 
     def _on_add_step_clicked(self) -> None:
@@ -1045,6 +1102,59 @@ class TutorialAuthoringDialog(QDialog):
             self._mark_dirty()
             self._lbl_status.setText(
                 f"Applied updated verification criteria to Step {current_step.order}."
+            )
+
+    @Slot()
+    def _on_speech_preview_clicked(self) -> None:
+        """Open the Speech Preview & Audio Timing Simulator workbench for active step."""
+        if not (0 <= self._active_step_index < len(self._steps)):
+            QMessageBox.information(
+                self,
+                "No Step Selected",
+                "Please select a tutorial step to preview its spoken instructions and timing.",
+            )
+            return
+
+        self._save_inspector_to_active_step()
+        s = self._steps[self._active_step_index]
+
+        current_step = TaskStep(
+            step_id=str(s.get("step_id") or f"step-{self._active_step_index + 1}"),
+            order=self._active_step_index + 1,
+            title=str(s.get("title") or f"Step {self._active_step_index + 1}"),
+            instruction=str(s.get("instruction") or "Perform the step action."),
+            expected_outcome=ExpectedOutcome(
+                description=str(s.get("outcome_desc") or "Expected outcome is visible."),
+                required_elements=tuple(s.get("outcome_req", ())),
+                verification_hint=str(s.get("outcome_hint", "")),
+            ),
+            hints=tuple(s.get("hints", ())),
+            overlay_cues=tuple(s.get("overlay_cues", ())),
+        )
+
+        try:
+            task_def = self.build_task_definition()
+        except Exception:
+            task_def = TaskDefinition(
+                task_id=self._txt_task_id.text().strip() or "test-task",
+                title=self._txt_title.text().strip() or "Test Tutorial",
+                application=self._txt_application.text().strip() or "Application",
+                goal=self._txt_goal.text().strip() or "Learning Goal",
+                steps=(current_step,),
+            )
+
+        from octa.desktop.speech_preview_dialog import SpeechPreviewDialog
+
+        dlg = SpeechPreviewDialog(
+            task=task_def,
+            step=current_step,
+            controller=self._controller,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.applied_cue_duration is not None:
+            cue_dur = dlg.applied_cue_duration
+            self._lbl_status.setText(
+                f"Recommended cue duration (~{cue_dur:.1f}s) noted for Step {current_step.order}."
             )
 
     def _mark_dirty(self) -> None:

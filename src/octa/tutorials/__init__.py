@@ -79,11 +79,24 @@ from octa.tutorials.sound import (
     create_completion_speech_cue,
     synthesize_completion_chime_wav,
 )
+from octa.tutorials.speech_timing import (
+    DEFAULT_CUE_PADDING_SECONDS,
+    DEFAULT_MIN_CUE_SECONDS,
+    DEFAULT_MIN_SPEECH_SECONDS,
+    DEFAULT_WORDS_PER_MINUTE,
+    SpeechTimingEstimate,
+    estimate_speech_timing,
+    format_speech_timing_summary,
+)
 
 __all__ = [
     "BUILTIN_TASK_IDS",
     "BUILTIN_TUTORIALS",
+    "DEFAULT_CUE_PADDING_SECONDS",
+    "DEFAULT_MIN_CUE_SECONDS",
+    "DEFAULT_MIN_SPEECH_SECONDS",
     "DEFAULT_TRUSTED_KEYS",
+    "DEFAULT_WORDS_PER_MINUTE",
     "FORBIDDEN_EXTENSIONS",
     "FeedbackCollector",
     "InstalledPluginInfo",
@@ -108,6 +121,7 @@ __all__ = [
     "PluginSecurityError",
     "ProjectValidationError",
     "ProjectValidationReport",
+    "SpeechTimingEstimate",
     "StepProgressRecord",
     "TUTORIAL_PLUGIN_MANIFEST_FILENAME",
     "TrustStore",
@@ -130,7 +144,9 @@ __all__ = [
     "compute_file_sha256",
     "create_completion_speech_cue",
     "discover_tutorial_plugins",
+    "estimate_speech_timing",
     "extract_tutorial_package",
+    "format_speech_timing_summary",
     "get_builtin_tutorials",
     "get_installed_plugins_info",
     "get_tutorial_by_id",

@@ -1193,4 +1193,66 @@ Implemented and verified Phase 11.1 — Live Step Verification Sandbox & Prompt 
 
 ### Next Step
 - Review and stage Phase 11.1 files when approved.
-- Plan and implement Phase 11.2 (Multi-Step Tutorial Simulation & Run-Through Dry Mode).
+- Plan and implement Phase 11.2 (Speech Preview & Audio Timing Simulator).
+
+---
+
+## Task: Phase 11.2 — Speech Preview & Audio Timing Simulator
+
+**Date:** 2026-11-13
+**Phase:** 11.2
+
+### Summary
+Implemented and verified Phase 11.2 — Speech Preview & Audio Timing Simulator for OCTA:
+1. Created `src/octa/tutorials/speech_timing.py` implementing `SpeechTimingEstimate`, `estimate_speech_timing`, and `format_speech_timing_summary` for deterministic linguistic speech duration estimation and recommended visual cue duration calculations:
+   - Word count and character count parsing with configurable WPM cadence ($80\text{--}260\text{ WPM}$, default $140\text{ WPM}$).
+   - Punctuation-aware pauses ($0.35\text{s}$ for major sentence boundaries, $0.15\text{s}$ for minor pauses).
+   - Minimum speech duration floor ($1.5\text{s}$).
+   - Recommended cue duration floor ($\max(3.5\text{s}, t_{\text{speech}} + 1.5\text{s})$) preventing visual cues from prematurely dismissing while spoken instructions are audible.
+2. Created `src/octa/desktop/speech_preview_dialog.py` implementing `SpeechPreviewDialog` workbench:
+   - Narration source selector (`Instruction`, `Hints`, `Full Step`, `Custom Draft`) with real-time editable text draft.
+   - Dynamic cadence and cue padding controls updating timing estimates on every keystroke.
+   - One-click "✔ Apply Recommended Cue Duration" persisting tuned duration to the active step's `overlay_cue_duration_seconds`.
+   - Clear TTS provider status badges (`TTS: DISABLED`, `TTS: MOCK`, `TTS: REMOTE HTTPS`).
+   - Provider disabled safety: informative advisory, disabled play button, and zero mock/chime sound substitution.
+   - Remote HTTPS single-use consent enforcement via `VoiceConsentManager` handling cancellation cleanly without network activity.
+   - Audio preference toggle ("🔊 Enable Audio Playback") respecting mute settings.
+   - Synchronized on-screen visual cue preview (`GuidanceOverlayWidget`) matching step cues and auto-dismissing without screen capture.
+   - Immediate playback stop/cancel (`_stop_playback`) canceling active provider, stopping sound backend, closing preview overlays, and explicitly clearing in-memory audio buffers (`_active_speech = None`).
+   - Zero microphone recording guarantee: strictly output timing and playback.
+3. Updated `src/octa/desktop/tutorial_authoring_dialog.py`:
+   - Added live inline timing readout in the step inspector updating on every edit (`⏱ X.Xs speech (N words) · Y.Ys cue`).
+   - Added "🔊 Speech & Timing..." button launching `SpeechPreviewDialog` and notifying status bar when durations are applied.
+4. Exported public symbols in `src/octa/tutorials/__init__.py` and `src/octa/desktop/__init__.py`.
+5. Added `octa.desktop.speech_preview_dialog` and `octa.tutorials.speech_timing` to `octa.spec` PyInstaller hidden imports.
+6. Added 18 automated unit and Qt interaction tests in `tests/unit/test_speech_preview_dialog.py`.
+
+### Files Changed
+- `src/octa/tutorials/speech_timing.py` — Created timing estimation heuristics and dataclass.
+- `src/octa/desktop/speech_preview_dialog.py` — Created `SpeechPreviewDialog` authoring workbench.
+- `src/octa/tutorials/__init__.py` — Exported timing functions and constants.
+- `src/octa/desktop/__init__.py` — Exported `SpeechPreviewDialog`.
+- `src/octa/desktop/tutorial_authoring_dialog.py` — Added inline timing readout and preview button integration.
+- `octa.spec` — Added hidden imports for new modules.
+- `tests/unit/test_speech_preview_dialog.py` — Created 18 unit and Qt interaction tests.
+- `ROADMAP.md` — Marked Phase 11.2 complete with all checkboxes ticked.
+- `README.md` — Updated status line, What Works Now (section 19), roadmap table, project structure tree, and test count.
+- `CHANGELOG.md` — Added Phase 11.2 entry under [Unreleased].
+- `docs/architecture.md` — Documented Phase 11.2 architecture, component diagram, heuristics, and privacy guarantees.
+- `docs/PROGRESS.md` — Appended this progress entry.
+
+### Validation
+- **Speech Preview Test Suite**: Ran `pytest tests/unit/test_speech_preview_dialog.py -v`: 18 passed in 1.98s.
+- **Focused Authoring Suite**: Ran `pytest tests/unit/test_speech_preview_dialog.py tests/unit/test_tutorial_authoring.py -v`: 32 passed in 2.33s.
+- **Voice Subsystem Suite**: Ran `pytest tests/unit/test_voice_audio.py tests/unit/test_voice_consent.py tests/unit/test_voice_controller.py tests/unit/test_voice_providers.py -q`: 20 passed.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 457 passed, 1 skipped (Windows unprivileged symlinks).
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 92 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 11.2 files when approved.
+- Plan and implement Phase 11.3 (Tutorial Validation Matrix & Export Linter).

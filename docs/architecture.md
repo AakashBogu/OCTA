@@ -1,6 +1,6 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), Phase 10.1 (Visual region & directional cue selector), Phase 10.2 (Interactive step & tutorial builder UI), Phase 10.3 (Plugin project workspace & integrated package wizard), and Phase 11.1 (Live step verification sandbox & prompt diagnostics) are implemented and verified.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), Phase 10.1 (Visual region & directional cue selector), Phase 10.2 (Interactive step & tutorial builder UI), Phase 10.3 (Plugin project workspace & integrated package wizard), Phase 11.1 (Live step verification sandbox & prompt diagnostics), and Phase 11.2 (Speech preview & audio timing simulator) are implemented and verified.
 >
 > **Last updated:** 2026-11-13
 
@@ -1518,3 +1518,92 @@ Phase 11.1 introduces an interactive authoring workbench (`StepVerificationDialo
 5. **Secret Redaction & Safe Temporary Drafts**:
    - All diagnostic outputs, model reasoning excerpts, and error messages pass through `redact_sensitive_text`, ensuring API keys, bearer tokens, and credentials are never visible on screen or in logs.
    - All adjustments in `StepVerificationDialog` take place on an isolated working draft. The original tutorial step is only updated when the author explicitly clicks "✔ Apply Changes to Step" and confirms via `QMessageBox.question`. Discarding or closing the dialog leaves the step and tutorial untouched.
+
+---
+
+## Phase 11.2 — Implemented Speech Preview & Audio Timing Architecture
+
+Phase 11.2 introduces the **Speech Preview & Audio Timing Simulator** (`SpeechPreviewDialog` and `speech_timing.py`) directly into the Tutorial Studio authoring suite. It provides authors with immediate linguistic timing feedback, synchronized on-screen visual cue previewing, and realistic TTS playback verification without compromising security, consent, or user audio preferences.
+
+### Component Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    TutorialAuthoringDialog (Step Inspector)                 │
+│                                                                             │
+│  • Inline Live Readout: "⏱ 4.2s speech (12 words) · 5.7s cue"               │
+│  • Action: [🔊 Speech & Timing...]                                           │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Launches
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    SpeechPreviewDialog (Authoring Workbench)                │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ 1. Narration Source & Text Draft Editor                               │  │
+│  │    • Source: [ Instruction | Hints | Full Step | Custom Draft ]       │  │
+│  │    • Editable Draft Text Box (live keystroke timing updates)          │  │
+│  └───────────────────────────────────┬───────────────────────────────────┘  │
+│                                      │
+│                                      ▼
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │ 2. Linguistic Cadence & Heuristic Estimator (speech_timing.py)        │  │
+│  │    • Words-per-minute (80–260 WPM, default 140 WPM)                  │  │
+│  │    • Punctuation pauses: 0.35s major (.?!:;), 0.15s minor (, -)       │  │
+│  │    • Speech floor: min 1.5s                                           │  │
+│  │    • Cue duration: max(3.5s, speech_duration + cue_padding)           │  │
+│  │    • [✔ Apply Recommended Cue Duration (X.Xs)]                        │  │
+│  └───────────────────────────────────┬───────────────────────────────────┘  │
+│                                      │
+│         ┌────────────────────────────┴────────────────────────────┐
+│         ▼                                                         ▼
+│  ┌───────────────────────────────┐     ┌──────────────────────────────────┐
+│  │ 3. Synchronized Cue Preview   │     │ 4. Configured TTS Provider       │
+│  │    • GuidanceOverlayWidget    │     │    • Status: DISABLED/MOCK/REMOTE│
+│  │    • Highlights & Arrow cues  │     │    • Disabled: No audio/no mock  │
+│  │    • Matches recommended cue  │     │    • [🔊 Enable Audio Playback]  │
+│  │      duration & auto-dismiss  │     │    • [▶ Play Narration] / [⏹ Stop]│
+│  │    • Zero screen capture      │     │    • Consent check for HTTPS     │
+│  └───────────────────────────────┘     └──────────────────┬───────────────┘
+│                                                           │
+│                                                           ▼
+│                                        ┌──────────────────────────────────┐
+│                                        │ 5. Safe Audio Playback Lifecycle │
+│                                        │    • In-memory buffer playback   │
+│                                        │    • Stop cancels TTS provider   │
+│                                        │    • Releases _active_speech     │
+│                                        │    • Zero microphone capture     │
+│                                        └──────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Architectural Principles & Privacy Guarantees
+
+1. **Deterministic Cadence & Heuristic Timing Floor (`estimate_speech_timing`)**:
+   - Text is tokenized into words and sentence-level pause tokens.
+   - Baseline timing applies a default cadence of $140\text{ WPM}$ ($\sim 2.33\text{ words/sec}$), with user-tunable sliders ranging from $80\text{ WPM}$ (deliberate/slow) to $260\text{ WPM}$ (rapid).
+   - Major punctuation marks (`.`, `?`, `!`, `:`, `;`, newline) inject $0.35\text{s}$ pause padding; minor marks (`,`, `—`, `-`) inject $0.15\text{s}$.
+   - Minimum speech floor is enforced at $1.5\text{s}$ to account for short utterances.
+   - Recommended visual cue duration enforces $\max(3.5\text{s}, t_{\text{speech}} + t_{\text{padding}})$, where default padding is $1.5\text{s}$. This guarantees on-screen guidance overlays remain visible while the user is listening and processing instructions, never dismissing prematurely.
+
+2. **Strict Provider Transparency & No Mock/Chime Substitution**:
+   - The workbench queries the application's configured TTS provider and displays prominent semantic badges (`TTS: DISABLED`, `TTS: MOCK`, `TTS: REMOTE HTTPS`).
+   - If TTS is disabled or unavailable, the UI provides an explicit advisory notice and keeps the playback button disabled.
+   - The system **never** substitutes a completion chime, silent mock, or synthesizes placeholder tones when TTS is disabled, ensuring authors are never misled into believing TTS is operational or properly timed.
+
+3. **Cryptographically Bound Single-Use Remote Speech Consent**:
+   - For remote HTTPS TTS providers, `SpeechPreviewDialog` coordinates consent via `VoiceConsentManager` before any outbound network request is dispatched.
+   - If consent is declined or cancelled, playback halts cleanly (`VoiceConsentDeclinedError`), leaving the editor in an idle state without throwing unhandled exceptions or sending text to external servers.
+
+4. **Zero Microphone Capture**:
+   - The speech preview workbench is strictly an output preview and timing tool. It never invokes `VoiceCaptureSession`, opens input audio devices, or records microphone audio under any circumstance.
+
+5. **Immediate Cancellation & Memory Buffer Lifecycle**:
+   - Audio synthesized for preview is loaded into memory as a `QByteArray` / `QBuffer`.
+   - Clicking "⏹ Stop", closing the dialog, or starting a new playback triggers `_stop_playback()`.
+   - `_stop_playback()` cancels the active TTS provider, halts backend playback immediately, closes active preview overlay widgets, and explicitly sets `_active_speech = None`, ensuring memory buffers are promptly collected and no residual audio continues playing in the background.
+
+6. **Isolation from Saved Content & Learner Metrics**:
+   - Edits made within the preview text editor exist solely as an authoring draft and do not mutate the step's saved instruction or hints unless the author explicitly decides to update them in the main inspector.
+   - Clicking "✔ Apply Recommended Cue Duration" mutates only the targeted step's `overlay_cue_duration_seconds` field, leaving all other step fields untouched.
+   - Speech previews are strictly isolated from learner analytics and `FeedbackCollector` metrics.
