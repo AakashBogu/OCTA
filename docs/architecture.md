@@ -1,8 +1,8 @@
 # OCTA — Architecture Documentation
 
-> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), Phase 10.1 (Visual region & directional cue selector), Phase 10.2 (Interactive step & tutorial builder UI), Phase 10.3 (Plugin project workspace & integrated package wizard), Phase 11.1 (Live step verification sandbox & prompt diagnostics), and Phase 11.2 (Speech preview & audio timing simulator) are implemented and verified.
+> **Status:** Phase 1 (Godot character prototype), Phase 2 (Python foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS providers, remote speech consent, and instruction pipeline routing), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree), Phase 8.1 (External tutorial plugin system), Phase 8.2 (Multi-monitor geometry and display adaptation), Phase 8.3 (Accessibility adaptations), Phase 9.1 (Secure package archive and CLI), Phase 9.2 (Cryptographic integrity & provenance trust model), Phase 9.3 (Desktop plugin manager UI & dynamic catalog integration), Phase 10.1 (Visual region & directional cue selector), Phase 10.2 (Interactive step & tutorial builder UI), Phase 10.3 (Plugin project workspace & integrated package wizard), Phase 11.1 (Live step verification sandbox & prompt diagnostics), Phase 11.2 (Speech preview & audio timing simulator), and Phase 11.3 (Interactive author step runner & playtest sandbox) are implemented and verified.
 >
-> **Last updated:** 2026-11-13
+> **Last updated:** 2026-11-15
 
 ---
 
@@ -1607,3 +1607,98 @@ Phase 11.2 introduces the **Speech Preview & Audio Timing Simulator** (`SpeechPr
    - Edits made within the preview text editor exist solely as an authoring draft and do not mutate the step's saved instruction or hints unless the author explicitly decides to update them in the main inspector.
    - Clicking "✔ Apply Recommended Cue Duration" mutates only the targeted step's `overlay_cue_duration_seconds` field, leaving all other step fields untouched.
    - Speech previews are strictly isolated from learner analytics and `FeedbackCollector` metrics.
+
+---
+
+## Phase 11.3 — Implemented Author Step Runner & Playtest Architecture
+
+Phase 11.3 introduces the **Interactive Author Step Runner & Playtest Sandbox** (`TutorialPlaytestDialog` in `src/octa/desktop/tutorial_playtest_dialog.py`). Accessible directly from both `TutorialAuthoringDialog` and `PluginProjectDialog`, it provides tutorial creators with an interactive, non-destructive simulation environment to playtest multi-step tutorials from the learner's perspective.
+
+### Component Diagram
+
+```
+┌──────────────────────────────────────┐     ┌──────────────────────────────────┐
+│       TutorialAuthoringDialog        │     │       PluginProjectDialog        │
+│    (Action: [🎮 Playtest...])        │     │    (Action: [🎮 Playtest...])    │
+└──────────────────┬───────────────────┘     └──────────────────┬───────────────┘
+                   │                                            │
+                   └─────────────────────┬──────────────────────┘
+                                         │ Launches
+                                         ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│              TutorialPlaytestDialog (Author Playtest Workbench)               │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────────┐  │
+│  │ 1. Header Banner & Safety Sandbox Mode Notice                           │  │
+│  │    • Title, Task ID, Total Steps, Application                           │  │
+│  │    • Notice: Non-destructive author simulation; zero learner mutation   │  │
+│  └─────────────────────────────────────┬───────────────────────────────────┘  │
+│                                        │
+│  ┌─────────────────────────────────────▼───────────────────────────────────┐  │
+│  │ 2. Navigation & Reset Control Bar                                       │  │
+│  │    • [⏮ First] [◀ Prev] [ Step Selector Dropdown ] [Next ▶] [Last ⏭]    │  │
+│  │    • [🔄 Reset Step]  [⏪ Reset All Steps]                               │  │
+│  └─────────────────────────────────────┬───────────────────────────────────┘  │
+│                                        │
+│         ┌──────────────────────────────┴──────────────────────────────┐
+│         ▼                                                             ▼
+│  ┌─────────────────────────────────────┐   ┌──────────────────────────────────┐
+│  │ 3. Learner View Simulation          │   │ 4. Author Simulation Overrides   │
+│  │    • Current Step Header & Title    │   │    • Expected Outcome Criteria   │
+│  │    • Instruction Readout            │   │    • Status Badge (PENDING /     │
+│  │    • Progressive Hint Disclosure    │   │      SIMULATED COMPLETE / FAILED)│
+│  │      [💡 Request Next Hint]         │   │    • [✔ Force Step Complete]     │
+│  │    • Visual Cue Count Indicator     │   │    • [✖ Simulate Failure]        │
+│  └──────────────────┬──────────────────┘   └──────────────────┬───────────────┘
+│                     │                                         │
+│                     ▼                                         ▼
+│  ┌─────────────────────────────────────┐   ┌──────────────────────────────────┐
+│  │ 5. Passive Guidance Overlay         │   │ 6. Godot Companion State Sync    │
+│  │    • [x] Show Guidance Overlay      │   │    • Current: [ LISTENING ]      │
+│  │    • Renders on active display      │   │    • [IDLE] [LISTENING]          │
+│  │    • Highlights & Directional Arrows│   │      [THINKING] [SUCCESS]        │
+│  │    • Passive click-through; no input│   │    • Dispatches over WebSocket   │
+│  └─────────────────────────────────────┘   └──────────────────────────────────┘
+└────────────────────────────────────────┬──────────────────────────────────────┘
+                                         │ Clean Exit
+                                         ▼
+                 ┌────────────────────────────────────────────────┐
+                 │ Teardown & Isolation:                          │
+                 │   • Dismisses on-screen overlay widgets        │
+                 │   • Returns 3D companion character to IDLE     │
+                 │   • Leaves saved tutorial files untouched      │
+                 │   • Zero learner feedback / metrics recorded   │
+                 └────────────────────────────────────────────────┘
+```
+
+### Architectural Principles & Privacy Invariants
+
+1. **Strict Non-Destructive Playtest Isolation**:
+   - Playtesting is strictly sandboxed from learner telemetry and saved tutorial source definitions.
+   - The playtest runner never writes to `tutorial_feedback/` or invokes `FeedbackCollector` methods (`record_feedback`, `record_session_metrics`, `record_step_progress`).
+   - Stepping through or overriding steps does not mutate saved JSON tutorial files or project manifests.
+
+2. **Zero External AI / Screen Capture / Voice Dependencies**:
+   - The playtest runner never captures screen pixels via `ScreenCapturer` (`capture_full_screen`, `capture_region`).
+   - It makes zero remote multimodal LLM calls via `ProgressVerifier` or `OpenAICompatibleAdapter`.
+   - It never opens audio input devices or records microphone audio via `PushToTalkRecorder`.
+   - All outcomes ("Force Step Complete", "Simulate Failure") are generated purely locally and explicitly badged as `SIMULATED` to avoid author confusion with live AI verification.
+
+3. **Free Step Navigation & Independent State Management**:
+   - Authors can jump directly to any step via the dropdown combo box or step forward and backward.
+   - Step outcomes (`STATUS_PENDING`, `STATUS_COMPLETE`, `STATUS_FAILED`) and revealed hint counts are tracked in isolated in-memory dictionaries (`_step_outcomes`, `_revealed_hints`).
+   - "Reset Step" clears only the current step's simulated status and hints; "Reset All Steps" resets all steps across the tutorial and returns to Step 1.
+
+4. **Realistic Learner-Facing Simulation**:
+   - **Progressive Hint Disclosure**: Mirrors learner experience by disclosing hints sequentially on demand ("Request Next Hint"), incrementing revealed hint counters, and dynamically creating styled hint callout frames.
+   - **Passive Guidance Overlay**: Renders `GuidanceOverlayWidget` on the active display monitor matching user accessibility settings (`high_contrast`, `text_scale`). The overlay is completely passive, click-through, and never synthesizes mouse clicks or keyboard strokes.
+
+5. **Bidirectional Companion Character State Synchronization**:
+   - Integrates with `DesktopController.request_companion_state()` to send `SET_STATE` commands over the local loopback WebSocket server to the Godot 3D robot:
+     - `LISTENING`: Activated upon opening playtest, jumping to a step, or resetting.
+     - `THINKING`: Activated when revealing a hint or simulating criteria failure.
+     - `SUCCESS`: Activated when forcing step completion or completing the tutorial.
+   - Provides manual test buttons (`IDLE`, `LISTENING`, `THINKING`, `SUCCESS`) for testing character responses.
+
+6. **Guaranteed Dismissal & Idle Reset on Teardown**:
+   - Upon closing or exiting the dialog (`accept`, `reject`, `closeEvent`), `_cleanup_playtest()` automatically closes any active `GuidanceOverlayWidget` instances and dispatches `request_companion_state("IDLE")`, ensuring the desktop is clean and the companion returns to idle.

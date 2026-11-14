@@ -1,10 +1,10 @@
 # OCTA — On-screen Companion Tutor & Assistant
 
-**Status:** 🟢 Phase 11.2 — Speech Preview & Audio Timing Simulator (in progress)
+**Status:** 🟢 Phase 11.3 — Interactive Author Step Runner & Playtest Sandbox (in progress)
 
 OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop applications with an animated 3D companion, conversational step-by-step instructions, visual screen guidance, progress verification, and push-to-talk voice interaction.
 
-> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation), Phase 9.1 (Secure tutorial package archive format `.octapack`, CLI packager and zero-extraction verifier, Zip Slip defense, and quota enforcement), Phase 9.2 (Cryptographic integrity, deterministic asset digests, Ed25519 manifest signing/verification, pinned trust store, three-tier trust classification, and offline verification), Phase 9.3 (Desktop plugin manager UI, pre-flight package verification modal, trust badges, unprivileged acknowledgement requirement, safe atomic extraction, quota checks, path traversal guards, safe uninstallation, and zero-restart dynamic catalog synchronization), Phase 10.1 (Visual region and directional arrow authoring overlay, multi-monitor geometry and negative virtual coordinate mapping, DPI scaling conversion, fine-tuning controls HUD, companion authoring dialog, and learner-matching accessibility preview), Phase 10.2 (Interactive Step & Tutorial Builder UI, structured task metadata editing, ordered step CRUD and re-indexing, in-app schema validation, reserved built-in ID collision protection, visual cue integration and preview, and safe atomic JSON persistence), Phase 10.3 (Plugin Project Workspace & Integrated Package Wizard, local project workspace management, atomic manifest persistence, quota and security pre-flight validation, collision protection, opt-in Ed25519 signing wizard, and live test installation with dynamic catalog reload), Phase 11.1 (Live Step Verification Sandbox & Prompt Diagnostics, author-triggered in-editor verification test bench, explicit capture initiation, single-use consent binding, memory-only image handling, confidence and required-element checklist diagnostics, conservative downgrade explanations, temporary draft tuning with confirmation apply, and simulated offline mode), and Phase 11.2 (Speech Preview & Audio Timing Simulator, in-editor TTS instruction preview, linguistic speech timing estimation, recommended visual cue duration modeling, synchronized visual overlay preview, single-use remote voice consent, and immediate stop/cancel with buffer flushing) are implemented and verified.
+> Note: OCTA is in active development. Phase 1 (Godot 3D character prototype), Phase 2 (Python application foundation, process manager, protocol v1, WebSocket server, PySide6 desktop interface), Phase 3 (Godot WebSocket client & end-to-end bridge), Phase 4.0 (Screen capture, task validation, consent workflow, OpenAI-compatible LLM adapter, progress verification, and Qt visual overlay), Phase 5.0 (Push-to-talk voice interaction, injectable STT/TTS provider interfaces, remote voice consent disclosure, and instruction readout), Phase 6.0 (End-to-end tutorial engine, sample tutorials, feedback loop, performance optimization, and Windows distribution packaging), Phase 7.0 (Enhanced Godot character, transparent desktop window, AnimationTree, and 6 animations), Phase 8.1 (Local tutorial plugin system, security sandboxing, ID collision prevention, and dynamic reload), Phase 8.2 (Multi-monitor geometry, display adaptation, negative coordinates, and DPI scaling), Phase 8.3 (Accessibility adaptations: high-contrast cues, non-color shape indicators, text scaling, optional completion audio chime, and keyboard navigation), Phase 9.1 (Secure tutorial package archive format `.octapack`, CLI packager and zero-extraction verifier, Zip Slip defense, and quota enforcement), Phase 9.2 (Cryptographic integrity, deterministic asset digests, Ed25519 manifest signing/verification, pinned trust store, three-tier trust classification, and offline verification), Phase 9.3 (Desktop plugin manager UI, pre-flight package verification modal, trust badges, unprivileged acknowledgement requirement, safe atomic extraction, quota checks, path traversal guards, safe uninstallation, and zero-restart dynamic catalog synchronization), Phase 10.1 (Visual region and directional arrow authoring overlay, multi-monitor geometry and negative virtual coordinate mapping, DPI scaling conversion, fine-tuning controls HUD, companion authoring dialog, and learner-matching accessibility preview), Phase 10.2 (Interactive Step & Tutorial Builder UI, structured task metadata editing, ordered step CRUD and re-indexing, in-app schema validation, reserved built-in ID collision protection, visual cue integration and preview, and safe atomic JSON persistence), Phase 10.3 (Plugin Project Workspace & Integrated Package Wizard, local project workspace management, atomic manifest persistence, quota and security pre-flight validation, collision protection, opt-in Ed25519 signing wizard, and live test installation with dynamic catalog reload), Phase 11.1 (Live Step Verification Sandbox & Prompt Diagnostics, author-triggered in-editor verification test bench, explicit capture initiation, single-use consent binding, memory-only image handling, confidence and required-element checklist diagnostics, conservative downgrade explanations, temporary draft tuning with confirmation apply, and simulated offline mode), Phase 11.2 (Speech Preview & Audio Timing Simulator, in-editor TTS instruction preview, linguistic speech timing estimation, recommended visual cue duration modeling, synchronized visual overlay preview, single-use remote voice consent, and immediate stop/cancel with buffer flushing), and Phase 11.3 (Interactive Author Step Runner & Playtest Sandbox, non-destructive author playtesting, free step jumping, step and tutorial reset, force complete and simulate failure overrides, learner-matching hint progression and overlay guidance, Godot companion state synchronization, and strict feedback and telemetry isolation) are implemented and verified.
 
 ---
 
@@ -34,7 +34,7 @@ OCTA is an AI-powered desktop tutor for Windows. It guides users through desktop
 
 ## What Works Now
 
-OCTA currently includes nineteen verified subsystems:
+OCTA currently includes twenty verified subsystems:
 
 ### 1. Phase 7.0 Enhanced Godot 3D Character & Desktop Window
 - **Transparent Borderless Window:** Transparent desktop companion overlay with per-pixel alpha transparency, always-on-top ordering, default bottom-right screen docking, and left-click mouse dragging to position the character anywhere on the desktop.
@@ -190,6 +190,15 @@ OCTA currently includes nineteen verified subsystems:
 - **Synchronized Visual Cue Preview:** Simulates the complete learner experience by playing synthesized speech while simultaneously rendering the step's visual overlay cues (`GuidanceOverlayWidget`) for the exact duration of the speech or calculated timing estimate.
 - **Privacy Boundary & Metric Isolation:** Never accesses or records microphone audio, and keeps all authoring previews strictly isolated from learner telemetry and feedback session metrics.
 
+### 20. Phase 11.3 Interactive Author Step Runner & Playtest Sandbox
+- **Dedicated Non-Destructive Author Playtest Workbench (`TutorialPlaytestDialog`):** Interactive playtest workbench launched directly from `TutorialAuthoringDialog` ("🎮 Playtest...") and `PluginProjectDialog` ("🎮 Playtest..."), allowing tutorial creators to run through multi-step tutorials from the learner's perspective without altering saved project files.
+- **Free Step Navigation & Reset Controls:** Provides instant step jumping via step dropdown selector, sequential navigation (`First`, `Prev`, `Next`, `Last`), step-level reset (`Reset Step`), and full tutorial reset (`Reset All Steps`).
+- **Simulated Outcome Overrides:** Authors can force step outcomes with "✔ Force Step Complete" (marking step complete, transitioning companion to `SUCCESS`) or "✖ Simulate Failure" (marking criteria unmet, transitioning companion to `THINKING`). Simulated outcomes are prominently badged to prevent confusion with real AI verification.
+- **Learner View & Progressive Hint Disclosure:** Accurately renders learner instructions, expected outcome criteria, and progressive hint disclosure ("Request Next Hint" revealing hints sequentially while updating companion state).
+- **Synchronized Visual Overlay Guidance:** Renders on-screen visual highlight boxes and directional arrows on the active display monitor matching learner accessibility settings (high contrast, text scale), with toggle and instant overlay refresh controls.
+- **Godot Companion State Synchronization:** Bi-directionally synchronizes companion character state (`IDLE`, `LISTENING`, `THINKING`, `SUCCESS`) across the local WebSocket bridge, with manual state testing buttons and automatic reset to `IDLE` on playtest exit.
+- **Strict Privacy & Metric Isolation:** Playtest sessions never record learner feedback, persist session metrics, capture screenshots, invoke remote AI APIs, record microphone audio, or synthesize keyboard/mouse clicks. On dialog exit, all active overlays are dismissed and the companion character returns to `IDLE`.
+
 ---
 
 ## Proposed Architecture
@@ -256,13 +265,13 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
 | 10.3 | Plugin project workspace & package wizard | ✅ Complete |
 | 11.1 | Live step verification sandbox & prompt diagnostics | ✅ Complete |
 | 11.2 | Speech preview & audio timing simulator | ✅ Complete |
-| 11.3 | Interactive author step runner & playtest sandbox | 📋 Planned |
+| 11.3 | Interactive author step runner & playtest sandbox | ✅ Complete |
 
 ---
 
 ## Development Status
 
-- **Current phase:** Phase 11.2 Complete — Speech Preview & Audio Timing Simulator implemented and verified with in-editor TTS instruction preview (`SpeechPreviewDialog`), linguistic speech timing estimation, recommended visual cue duration modeling, synchronized visual overlay preview, single-use remote voice consent, immediate stop/cancel with buffer flushing, and audio preference handling.
+- **Current phase:** Phase 11.3 Complete — Interactive Author Step Runner & Playtest Sandbox implemented and verified with dedicated playtest workbench (`TutorialPlaytestDialog`), free step navigation, reset controls, force complete and simulate failure overrides, learner-matching hint progression and overlay guidance, Godot companion character state synchronization over WebSocket, and strict feedback/metric isolation.
 - **What exists:**
   - Runnable Godot 4.7 project with transparent borderless desktop overlay, articulated 3D character, 6 animations, `AnimationTree` state machine, 100% procedural assets under MIT license (`ASSETS_LICENSE.md`), and embedded `OctaWsClient`.
   - Python 3.12 package foundation with CLI, configuration system, structured logging, `GodotProcessManager`, authenticated `WebSocketServer`, and secure credential handoff.
@@ -281,7 +290,8 @@ See [ROADMAP.md](ROADMAP.md) for the full milestone plan.
   - Phase 10.3 Plugin Project Workspace & Integrated Package Wizard (`src/octa/tutorials/project.py`, `src/octa/desktop/plugin_project_dialog.py`) with `TutorialPluginProject`, `PluginProjectDialog`, `PackageWizardDialog`, `ProjectValidationReport`, opt-in memory-only Ed25519 signing, forbidden file and quota checks, and confirmed live test installation.
   - Phase 11.1 Live Step Verification Sandbox & Prompt Diagnostics (`src/octa/desktop/step_verification_dialog.py`, `src/octa/desktop/tutorial_authoring_dialog.py`) with `StepVerificationDialog`, explicit user-initiated capture, strict single-use consent binding, memory-only evaluation without disk persistence, confidence threshold analysis ($0.75$), required-element checklist, conservative downgrade explanations, temporary draft tuning with confirmed application, and simulated offline mode.
   - Phase 11.2 Speech Preview & Audio Timing Simulator (`src/octa/desktop/speech_preview_dialog.py`, `src/octa/tutorials/speech_timing.py`) with `SpeechPreviewDialog`, linguistic speech duration estimation, recommended visual cue duration modeling, synchronized visual overlay preview, single-use remote voice consent, immediate stop/cancel with buffer flushing, and audio preference handling.
-  - Full automated test suite: 457 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
+  - Phase 11.3 Interactive Author Step Runner & Playtest Sandbox (`src/octa/desktop/tutorial_playtest_dialog.py`) with `TutorialPlaytestDialog`, free step navigation, reset controls, force complete and simulate failure overrides, progressive hint disclosure, synchronized visual guidance overlay, Godot companion state synchronization, and strict isolation from learner metrics and feedback.
+  - Full automated test suite: 475 Python tests passing (1 skipped for unprivileged symlinks) + 79 headless Godot tests passing (66 enhanced character & animation tests + 13 protocol tests).
 - **What does not exist yet:** Wake-word detection (explicitly deferred) and cloud sync for progress.
 
 ---
@@ -401,6 +411,7 @@ OCTA/
 │       │   ├── step_verification_dialog.py # StepVerificationDialog live & offline prompt testing workbench
 │       │   ├── tray.py           # OctaSystemTray icon and context menu
 │       │   ├── tutorial_authoring_dialog.py # TutorialAuthoringDialog builder interface
+│       │   ├── tutorial_playtest_dialog.py  # TutorialPlaytestDialog author step runner & playtest sandbox
 │       │   └── window.py         # DiagnosticWindow companion monitor and log view
 │       ├── intelligence/         # Phase 4.0 screen capture, consent, LLM, verifier & overlay
 │       │   ├── __init__.py       # Intelligence Layer public exports
@@ -434,7 +445,7 @@ OCTA/
 │           ├── controller.py     # VoiceInteractionController & instruction pipeline routing
 │           ├── exceptions.py     # Voice, microphone, consent, and provider exceptions
 │           └── providers.py      # Injectable STT/TTS protocols, mocks, HTTP providers & catalog
-├── tests/                        # Automated test suite (457 Python tests passing, 1 skipped)
+├── tests/                        # Automated test suite (475 Python tests passing, 1 skipped)
 │   ├── conftest.py               # Shared test fixtures & custom markers
 │   ├── integration/              # Real binary integration tests
 │   │   ├── test_end_to_end_bridge.py          # Full Python server and Godot client tests
@@ -465,6 +476,7 @@ OCTA/
 │       ├── test_tasks.py             # Task, step, outcome, and result schema validation tests
 │       ├── test_tutorial_authoring.py # Tutorial builder & atomic persistence tests
 │       ├── test_tutorial_packaging.py # Packaging, cryptography & trust store tests
+│       ├── test_tutorial_playtest.py # Author step runner & playtest sandbox tests
 │       ├── test_tutorial_plugins.py  # Plugin loader & sandboxing tests
 │       ├── test_voice_audio.py       # Push-to-talk capture, WAV codec & privacy tests
 │       ├── test_voice_consent.py     # Remote speech destination disclosure & consent tests

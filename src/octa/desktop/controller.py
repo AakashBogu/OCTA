@@ -927,9 +927,13 @@ class DesktopController(QObject):
         self.tutorial_step_changed.emit(step_num, total_steps, step_id, instruction_text)
         self.instruction_updated.emit(step_id, instruction_text)
 
-    def _on_companion_state_requested(self, target_robot_state: str) -> None:
+    def request_companion_state(self, target_robot_state: str, reason: str = "") -> None:
+        """Send a robot companion state request to the connected Godot client."""
         if self._server.is_authenticated and target_robot_state:
             try:
-                self._server.set_state(target_robot_state)
+                self._server.set_state(target_robot_state, reason=reason)
             except Exception:
                 pass
+
+    def _on_companion_state_requested(self, target_robot_state: str) -> None:
+        self.request_companion_state(target_robot_state)

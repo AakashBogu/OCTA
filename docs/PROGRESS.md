@@ -1255,4 +1255,60 @@ Implemented and verified Phase 11.2 — Speech Preview & Audio Timing Simulator 
 
 ### Next Step
 - Review and stage Phase 11.2 files when approved.
-- Plan and implement Phase 11.3 (Tutorial Validation Matrix & Export Linter).
+- Plan and implement Phase 11.3 (Interactive Author Step Runner & Playtest Sandbox).
+
+---
+
+## Task: Phase 11.3 — Interactive Author Step Runner & Playtest Sandbox
+
+**Date:** 2026-11-15
+**Phase:** 11.3
+
+### Summary
+Implemented and verified Phase 11.3 — Interactive Author Step Runner & Playtest Sandbox for OCTA:
+1. Created `src/octa/desktop/tutorial_playtest_dialog.py` implementing `TutorialPlaytestDialog`, providing an author playtesting workbench:
+   - Free step navigation: sequential navigation (`⏮ First`, `◀ Prev`, `Next ▶`, `Last ⏭`) and direct jumping via step dropdown selector.
+   - Reset controls: step-level reset (`🔄 Reset Step` clearing simulated outcome and revealed hints for active step) and full tutorial reset (`⏪ Reset All Steps` resetting all steps and returning to Step 1).
+   - Author simulation overrides: `✔ Force Step Complete` (marking step complete, transitioning companion to `SUCCESS`) and `✖ Simulate Failure` (marking criteria unmet, transitioning companion to `THINKING`), with prominent badges preventing confusion with real AI verification.
+   - Learner view simulation: displays step instructions, expected outcome criteria, progressive hint disclosure (`💡 Request Next Hint` sequentially revealing hints with active count and styled callout frames), and visual cue count indicator.
+   - Synchronized on-screen guidance overlay: renders `GuidanceOverlayWidget` (highlight boxes and directional arrows) on the active display monitor matching user accessibility settings (`high_contrast`, `text_scale`), with toggle checkbox and instant refresh button.
+   - Godot 3D companion character state synchronization: dispatches `SET_STATE` commands (`IDLE`, `LISTENING`, `THINKING`, `SUCCESS`) across the local WebSocket server via `controller.request_companion_state()`, with manual state test buttons.
+   - Teardown & cleanup: closing or exiting the dialog dismisses all on-screen overlays and automatically returns the companion robot to `IDLE`.
+   - Strict isolation from learner behavior: zero feedback recording, zero session metric mutations, zero screen capture, zero remote AI calls, zero microphone recording, and zero synthetic input.
+2. Updated `src/octa/desktop/controller.py`:
+   - Added `request_companion_state(state, reason)` to `DesktopController` to dispatch companion robot state transitions to the connected Godot client over the authenticated loopback WebSocket.
+3. Updated `src/octa/desktop/tutorial_authoring_dialog.py`:
+   - Added "🎮 &Playtest..." toolbar button launching `TutorialPlaytestDialog` with the current tutorial definition and active step index.
+4. Updated `src/octa/desktop/plugin_project_dialog.py`:
+   - Added "🎮 &Playtest..." button to the registered tutorials list, launching `TutorialPlaytestDialog` for any selected tutorial file.
+5. Exported `TutorialPlaytestDialog` in `src/octa/desktop/__init__.py` and added to `octa.spec` PyInstaller hidden imports.
+6. Added 18 automated unit and Qt interaction tests in `tests/unit/test_tutorial_playtest.py` covering dialog initialization, free step navigation, hint progression, step/full reset, author overrides, overlay rendering/toggling/cleanup, companion state synchronization, learner feedback/metric isolation, and dialog button wiring.
+
+### Files Changed
+- `src/octa/desktop/tutorial_playtest_dialog.py` — Created `TutorialPlaytestDialog` playtest workbench.
+- `src/octa/desktop/controller.py` — Added `request_companion_state()` method.
+- `src/octa/desktop/tutorial_authoring_dialog.py` — Added playtest button and slot.
+- `src/octa/desktop/plugin_project_dialog.py` — Added playtest button and slot.
+- `src/octa/desktop/__init__.py` — Exported `TutorialPlaytestDialog`.
+- `octa.spec` — Added hidden import for `octa.desktop.tutorial_playtest_dialog`.
+- `tests/unit/test_tutorial_playtest.py` — Created 18 automated unit and Qt interaction tests.
+- `ROADMAP.md` — Marked Phase 11.3 complete with all checkboxes ticked.
+- `README.md` — Updated status line, What Works Now (section 20), roadmap table, project structure tree, and test count.
+- `CHANGELOG.md` — Added Phase 11.3 entry under [Unreleased].
+- `docs/architecture.md` — Documented Phase 11.3 architecture, component diagram, heuristics, and privacy guarantees.
+- `docs/PROGRESS.md` — Appended this progress entry.
+
+### Validation
+- **Tutorial Playtest Test Suite**: Ran `pytest tests/unit/test_tutorial_playtest.py -v`: 18 passed in 3.68s.
+- **Focused Authoring Suite**: Ran `pytest tests/unit/test_tutorial_playtest.py tests/unit/test_tutorial_authoring.py tests/unit/test_plugin_project.py tests/unit/test_speech_preview_dialog.py tests/unit/test_step_verification_dialog.py -v`: 78 passed in 4.71s.
+- **Full Python Test Suite**: Ran `pytest tests -q -p no:cacheprovider`: 475 passed, 1 skipped (Windows unprivileged symlinks).
+- **Ruff Linter**: Ran `ruff check src tests scripts`: all checks passed with 0 errors.
+- **Ruff Formatter**: Ran `ruff format --check src tests scripts`: all 94 files properly formatted.
+- **Git Diff Check**: Ran `git diff --check`: 0 whitespace errors.
+
+### Blockers
+- None.
+
+### Next Step
+- Review and stage Phase 11.3 files when approved.
+- Plan and implement next milestone (e.g. Phase 12 or Phase 11 polish).

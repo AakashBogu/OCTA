@@ -140,6 +140,13 @@ class TutorialAuthoringDialog(QDialog):
         self._btn_validate.setAccessibleName("Validate Tutorial Schema")
         self._btn_validate.clicked.connect(self._on_validate_clicked)
 
+        self._btn_playtest = QPushButton("🎮 &Playtest...", self)
+        self._btn_playtest.setAccessibleName("Launch Author Playtest Sandbox")
+        self._btn_playtest.setToolTip(
+            "Test tutorial steps, progressive hints, and cues in the author playtest sandbox."
+        )
+        self._btn_playtest.clicked.connect(self._on_playtest_clicked)
+
         self._btn_project = QPushButton("📁 Plugin &Studio...", self)
         self._btn_project.setAccessibleName("Open Plugin Project Studio")
         self._btn_project.clicked.connect(self._on_project_studio_clicked)
@@ -149,6 +156,7 @@ class TutorialAuthoringDialog(QDialog):
         toolbar.addWidget(self._btn_save)
         toolbar.addWidget(self._btn_save_as)
         toolbar.addWidget(self._btn_validate)
+        toolbar.addWidget(self._btn_playtest)
         toolbar.addWidget(self._btn_project)
         toolbar.addStretch()
 
@@ -1156,6 +1164,31 @@ class TutorialAuthoringDialog(QDialog):
             self._lbl_status.setText(
                 f"Recommended cue duration (~{cue_dur:.1f}s) noted for Step {current_step.order}."
             )
+
+    @Slot()
+    def _on_playtest_clicked(self) -> None:
+        """Launch the Interactive Author Step Runner & Playtest Sandbox."""
+        self._save_inspector_to_active_step()
+        try:
+            task_def = self.build_task_definition()
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "Validation Error",
+                f"Cannot launch playtest because the tutorial has validation errors:\n\n{exc}",
+            )
+            return
+
+        from octa.desktop.tutorial_playtest_dialog import TutorialPlaytestDialog
+
+        dlg = TutorialPlaytestDialog(
+            task=task_def,
+            initial_step_index=self._active_step_index,
+            controller=self._controller,
+            parent=self,
+        )
+        dlg.exec()
+        self._lbl_status.setText("Playtest sandbox closed. Ready.")
 
     def _mark_dirty(self) -> None:
         self._is_dirty = True

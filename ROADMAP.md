@@ -288,13 +288,13 @@
 - [x] Immediate playback stop/cancel with buffer flushing and strict adherence to user audio mute/disable preferences
 - [x] Comprehensive unit and Qt interaction tests verifying duration calculations, playback state machine, and audio preference enforcement (18 unit tests in `tests/unit/test_speech_preview_dialog.py`)
 
-### Phase 11.3 — Interactive Author Step Runner & Playtest Sandbox *(planned)*
-- [ ] Dedicated non-destructive playtest mode launched directly from `TutorialAuthoringDialog` and `PluginProjectDialog`
-- [ ] Author playtest controls: free step jumping (forward/back), step reset, and "Force Step Complete" / "Simulate Failure" overrides
-- [ ] Real-time visual overlay rendering on the selected monitor matching learner-facing accessibility cues
-- [ ] Companion Godot 3D robot character state synchronization (`LISTENING`, `THINKING`, `SUCCESS`) over local WebSocket bridge
-- [ ] Playtest session isolation: prevents playtest runs from mutating or polluting learner feedback metrics and session logs
-- [ ] Comprehensive automated tests verifying step navigation, overlay cleanup, character state transitions, and session metrics isolation
+### Phase 11.3 — Interactive Author Step Runner & Playtest Sandbox *(complete)*
+- [x] Dedicated non-destructive playtest mode launched directly from `TutorialAuthoringDialog` and `PluginProjectDialog`
+- [x] Author playtest controls: free step jumping (forward/back), step reset, and "Force Step Complete" / "Simulate Failure" overrides
+- [x] Real-time visual overlay rendering on the selected monitor matching learner-facing accessibility cues
+- [x] Companion Godot 3D robot character state synchronization (`LISTENING`, `THINKING`, `SUCCESS`) over local WebSocket bridge
+- [x] Playtest session isolation: prevents playtest runs from mutating or polluting learner feedback metrics and session logs
+- [x] Comprehensive automated tests verifying step navigation, overlay cleanup, character state transitions, and session metrics isolation (18 unit tests in `tests/unit/test_tutorial_playtest.py`)
 
 ---
 

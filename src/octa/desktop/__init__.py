@@ -14,6 +14,7 @@ from octa.desktop.speech_preview_dialog import SpeechPreviewDialog
 from octa.desktop.step_verification_dialog import StepVerificationDialog
 from octa.desktop.tray import OctaSystemTray, create_tray_icon
 from octa.desktop.tutorial_authoring_dialog import TutorialAuthoringDialog
+from octa.desktop.tutorial_playtest_dialog import TutorialPlaytestDialog
 from octa.desktop.window import DiagnosticWindow
 
 __all__ = [
@@ -28,5 +29,6 @@ __all__ = [
     "SpeechPreviewDialog",
     "StepVerificationDialog",
     "TutorialAuthoringDialog",
+    "TutorialPlaytestDialog",
     "create_tray_icon",
 ]

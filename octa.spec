@@ -41,6 +41,7 @@ hidden_imports = [
     "octa.desktop.speech_preview_dialog",
     "octa.desktop.step_verification_dialog",
     "octa.desktop.tutorial_authoring_dialog",
+    "octa.desktop.tutorial_playtest_dialog",
     "octa.desktop.tray",
     "octa.intelligence",
     "octa.intelligence.capture",

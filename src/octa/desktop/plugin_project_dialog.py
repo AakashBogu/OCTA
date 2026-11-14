@@ -495,12 +495,17 @@ class PluginProjectDialog(QDialog):
         self._btn_edit_tut = QPushButton("✏️ Edit in Builder...", self._grp_tutorials)
         self._btn_edit_tut.setAccessibleName("Edit Selected Tutorial")
         self._btn_edit_tut.clicked.connect(self._on_edit_tutorial_clicked)
+        self._btn_playtest_tut = QPushButton("🎮 &Playtest...", self._grp_tutorials)
+        self._btn_playtest_tut.setAccessibleName("Playtest Selected Tutorial")
+        self._btn_playtest_tut.setToolTip("Launch Author Playtest Sandbox for selected tutorial.")
+        self._btn_playtest_tut.clicked.connect(self._on_playtest_tutorial_clicked)
         self._btn_remove_tut = QPushButton("🗑 Remove", self._grp_tutorials)
         self._btn_remove_tut.setAccessibleName("Remove Selected Tutorial")
         self._btn_remove_tut.clicked.connect(self._on_remove_tutorial_clicked)
 
         row_tut_btns.addWidget(self._btn_add_tut)
         row_tut_btns.addWidget(self._btn_edit_tut)
+        row_tut_btns.addWidget(self._btn_playtest_tut)
         row_tut_btns.addWidget(self._btn_remove_tut)
         tut_layout.addLayout(row_tut_btns)
         right_layout.addWidget(self._grp_tutorials, stretch=1)
@@ -679,6 +684,38 @@ class PluginProjectDialog(QDialog):
         dlg.open_file(full_path)
         dlg.exec()
         self._refresh_tutorials_list()
+
+    @Slot()
+    def _on_playtest_tutorial_clicked(self) -> None:
+        if self._project is None:
+            return
+
+        cur_item = self._list_tutorials.currentItem()
+        if cur_item is None:
+            QMessageBox.warning(self, "Selection Required", "Select a tutorial to playtest.")
+            return
+
+        rel_path = cur_item.data(Qt.ItemDataRole.UserRole)
+        full_path = (self._project.project_dir / rel_path).resolve()
+        if not full_path.is_file():
+            QMessageBox.warning(self, "Missing File", f"File '{rel_path}' not found on disk.")
+            return
+
+        try:
+            from octa.desktop.tutorial_playtest_dialog import TutorialPlaytestDialog
+            from octa.intelligence.tasks import load_task_definition_from_file
+
+            task_def = load_task_definition_from_file(full_path)
+            dlg = TutorialPlaytestDialog(
+                task=task_def,
+                controller=self._controller,
+                parent=self,
+            )
+            dlg.exec()
+        except Exception as exc:
+            QMessageBox.critical(
+                self, "Playtest Error", f"Could not launch playtest sandbox:\n\n{exc}"
+            )
 
     @Slot()
     def _on_remove_tutorial_clicked(self) -> None:
